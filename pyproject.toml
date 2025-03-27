@@ -1,0 +1,27 @@
+# pyproject.toml
+[build-system]
+requires = [
+    "setuptools",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiswre"
+version = "0.0.1"
+description = "NLP and AI Toolkit for Software Requirements Engineering"
+authors = [
+    {name = "Daniel Sobczynski", email = "dsobczynski88@gmail.com"},
+]
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.11"
+
+[tools.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages]
+find = {}
+
+[tools.setuptools.packages.find]
+where = ["aiswre*"]
+exclude = ["aiswre/data*"]
