@@ -14,7 +14,7 @@ authors = [
     {name = "Daniel Sobczynski", email = "dsobczynski88@gmail.com"},
 ]
 license = {text = "GPL-3.0-or-later"}
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 
 [tools.setuptools]
 include-package-data = true

@@ -27,7 +27,7 @@ df = pd.DataFrame({
     'inserted_id': [i for i in inserted_ids_from_pdf],
     'chunk':[d.page_content for d in docs_from_pdf]
 })
-df.head(5).to_excel("./aiswre/data/IEC_62304-2006_sample_chunks.pdf")
+df.head(5).to_excel("./aiswre/data/IEC_62304-2006_sample_chunks.xlsx")
 
 retriever = vstore.as_retriever(search_kwargs={"k": 3})
 
@@ -42,7 +42,7 @@ Another way of viewing this definition is to disregard the probability of risks 
 
 retrieved_docs = vstore.similarity_search(excerpt)
 
-print(retreived_docs)
+print(retrieved_docs)
 
 quality_template = """
 You are a software quality engineer currently reviewing medical device documentation and need to provide feedback on how well the documentation aligns with compliance standards. Use the provided context as to support your answers and do not make anything up.
