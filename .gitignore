@@ -1,2 +1,5 @@
 .env
 aiswre/data/
+aiswre.egg-info
+__pycache__
+notebooks
