@@ -1,5 +1,9 @@
 .env
-aiswre/data/
-aiswre.egg-info
-__pycache__
-notebooks
+aiswre.egg-info/
+__pycache__/
+notebooks/
+blogpost/
+archive/
+test.py
+reviser.py
+sectionalize_pdf.py

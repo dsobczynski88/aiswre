@@ -4,24 +4,14 @@ import nest_asyncio
 from pathlib import Path
 from typing import Union
 import pandas as pd
-#from langchain_ollama import ChatOllama, OllamaEmbeddings
 from pydantic import BaseModel, Field
 from langchain_core.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate
 from aiswre.utils import pd_utils
 
-#from prompts.promptlib import templates
-#embeddings_model = OllamaEmbeddings(model="llama3")
-#data_directory = Path.cwd() / 'data'
-#raw_directory = data_directory / 'raw'
-#input_directory = data_directory / 'input'
-#output_directory = data_directory / 'output'
-#logs_directory = data_directory / 'logs'
-
-#load and parse word document
 
 # Set up prompts
 def assemble_prompt_template(row: dict) -> ChatPromptTemplate:
-
+    '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
     return ChatPromptTemplate.from_messages([
             (
                 "system", 
@@ -32,20 +22,6 @@ def assemble_prompt_template(row: dict) -> ChatPromptTemplate:
                 row["user"],
             )
         ])
-
-def assemble_prompt_str(_template: ChatPromptTemplate) -> str:
-    prompt_str = ''
-    for message in _template.messages:
-        #print(f"Message type: {type(message).__name__}")
-        prompt_str += message.prompt.template + "\n" 
-    return prompt_str
-
-def check_for_prompt_vars(_template: ChatPromptTemplate) -> set:
-    prompt_vars = set()
-    for message in _template.messages:
-        #print(f"Message type: {type(message).__name__}")
-        prompt_vars.update(message.prompt.input_variables)
-    return prompt_vars
 
 def assemble_prompts_from_df(df):
     prompt_templates = []
@@ -73,6 +49,22 @@ def assemble_prompts_from_df(df):
     df.to_csv("./aiswre/templates/templates_invoked.csv")
     return prompt_templates, prompt_args_list
 
+def assemble_prompt_str(_template: ChatPromptTemplate) -> str:
+    prompt_str = ''
+    for message in _template.messages:
+        #print(f"Message type: {type(message).__name__}")
+        prompt_str += message.prompt.template + "\n" 
+    return prompt_str
+
+def check_for_prompt_vars(_template: ChatPromptTemplate) -> set:
+    prompt_vars = set()
+    for message in _template.messages:
+        #print(f"Message type: {type(message).__name__}")
+        prompt_vars.update(message.prompt.input_variables)
+    return prompt_vars
+
+
+'''
 templates = [
     {
         "name": 'prompt-template-1',
@@ -105,5 +97,7 @@ prompt_templates, prompt_args_list = assemble_prompts_from_df(templates_df)
 
 #print(prompt_templates)
 print(prompt_args_list)
-# define function here to populate vars...
 
+print(prompt_templates)
+# define function here to populate vars...
+'''

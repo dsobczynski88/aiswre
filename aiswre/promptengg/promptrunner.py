@@ -9,6 +9,12 @@ from pathlib import Path
 import pandas as pd
 #from langchain_openai import ChatOpenAI
 from tqdm import tqdm
+from langchain_core.runnables import (
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+    RunnableSequence
+)
 
 class ParallelPromptRunner:
 
@@ -37,6 +43,21 @@ class ParallelPromptRunner:
             async_tasks = self.run_multiple_chains(chain_outputs, None)
         return asyncio.run(async_tasks)
     
+    def assemble_chain_from_template(self, template):
+        chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content)
+        return chain
+    
+    def assemble_eval_chain_list(self, ids, evals):
+        chains=[]
+        for _id in ids:
+            template = evals[_id]["template"]
+            chains.append(self.assemble_chain_from_template(template))
+        return chains
+        
+            
+
+
+
     def assemble_chains(self, prompt_type, templates):       
         template = templates[prompt_type]['template']
         chain = template | self.llm

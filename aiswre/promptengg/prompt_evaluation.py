@@ -1,9 +1,9 @@
-import nltk
-
-# Lets say we have a list of llm-generated SW artifacts, such as requirements
+from typing import List
+import pandas as pd
 
 def add_spaces(x: str) -> str:
-    return f" {x} "
+    return x
+    #return f" {x} "
 
 def convert_bool_to_ohe(bool_result: bool) -> int:
     if bool_result:
@@ -80,28 +80,17 @@ def eval_has_escape_clause(text:str) -> bool:
     else:
         return False
 
-eval_funcs = {
-    'eval_is_in_passive_voice':eval_is_in_passive_voice,
-    'eval_if_vague_verb':eval_if_vague_verb,
-    'eval_has_a_def_article':eval_has_a_def_article,
-    'eval_has_vague_terms': eval_has_vague_terms,
-    'eval_has_escape_clause': eval_has_escape_clauses
-}
+def call_evals(df: pd.DataFrame, eval_funcs: List, col: str) -> None:
+    # run evals for each row of the dataframe
+    for _index, _row in df.iterrows():
+        for key, value in eval_funcs.items(): 
+            eval_func_to_call = eval_funcs[key] 
+            eval_result = eval_func_to_call(_row[col])
+            df.loc[_index, key] = convert_bool_to_ohe(
+                eval_result
+            )
 
-llm_results = [
-    'This is a result',
-    'This is another result',
-]
-result_col = "llm_results"
-df = pd.DataFrame({result_col:llm_results})
-
-# run evals for each row of the dataframe
-for _index, _row in df.iterrows():
-    for key, value in eval_funcs.items(): 
-        eval_func_to_call = eval_funcs[key] 
-        eval_result = eval_func_to_call(_row[result_col])
-        df.loc[_index, key] = convert_bool_to_ohe(
-            eval_result
-        )
-print(df.head(5))
-# get accuracy scores for each eval function
+def get_failed_evals(df: pd.DataFrame):
+    eval_cols = [c for c in df.columns if c.startswith("eval")]
+    df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
+    return df
