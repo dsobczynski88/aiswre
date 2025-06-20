@@ -1,7 +1,7 @@
 import sys
 import time
 import logging
-from functools import wraps
+from aiswre.prj_exception import CustomException
 
 def timing(loggername):
     def decorator(func):
@@ -15,6 +15,28 @@ def timing(loggername):
             elapsed_time = end_time - start_time
             logger.debug(f"{func.__name__} completed in {elapsed_time:.6f} seconds")
             return output
+        return wrapper
+    return decorator
+
+def get_logs(loggername):        
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            logger = logging.getLogger(loggername)
+            start_time = time.perf_counter()
+            logger.debug(f"Entering: {func.__name__}")
+            try:
+                output = func(*args, **kwargs)
+            except Exception as e:
+                ce = CustomException(e)
+                logger = logging.getLogger(loggername)                
+                logger.debug(ce.error_message)
+                output = None
+            finally:
+                logger.debug(f"Exiting: {func.__name__}")
+                end_time = time.perf_counter()
+                elapsed_time = end_time - start_time
+                logger.debug(f"{func.__name__} completed in {elapsed_time:.6f} seconds")
+                return output
         return wrapper
     return decorator
 
