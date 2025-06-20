@@ -1,0 +1,21 @@
+2025-06-19 22:42:02,156 - reviewer.sectionalize - DEBUG - Entering: get_pdf_text
+2025-06-19 22:42:02,594 - reviewer.sectionalize - DEBUG - Exiting: get_pdf_text
+2025-06-19 22:42:02,594 - reviewer.sectionalize - DEBUG - get_pdf_text completed in 0.448066 seconds
+2025-06-19 22:42:02,594 - reviewer.sectionalize - DEBUG - Entering: save_text
+2025-06-19 22:42:02,606 - reviewer.sectionalize - DEBUG - Exiting: save_text
+2025-06-19 22:42:02,606 - reviewer.sectionalize - DEBUG - save_text completed in 0.002215 seconds
+2025-06-19 22:42:02,606 - reviewer.sectionalize - DEBUG - Entering: get_sections_df
+2025-06-19 22:42:02,611 - reviewer.sectionalize - DEBUG - Exiting: get_sections_df
+2025-06-19 22:42:02,611 - reviewer.sectionalize - DEBUG - get_sections_df completed in 0.006738 seconds
+2025-06-19 22:42:02,611 - reviewer.sectionalize - DEBUG - Entering: add_section_text
+2025-06-19 22:42:02,636 - reviewer.sectionalize - DEBUG - Exiting: add_section_text
+2025-06-19 22:42:02,636 - reviewer.sectionalize - DEBUG - add_section_text completed in 0.021938 seconds
+2025-06-19 22:42:02,636 - reviewer.sectionalize - DEBUG - Entering: get_incose_definition
+2025-06-19 22:42:02,644 - reviewer.sectionalize - DEBUG - Exiting: get_incose_definition
+2025-06-19 22:42:02,644 - reviewer.sectionalize - DEBUG - get_incose_definition completed in 0.009283 seconds
+2025-06-19 22:42:02,644 - reviewer.sectionalize - DEBUG - Entering: get_incose_elaboration
+2025-06-19 22:42:02,649 - reviewer.sectionalize - DEBUG - Exiting: get_incose_elaboration
+2025-06-19 22:42:02,649 - reviewer.sectionalize - DEBUG - get_incose_elaboration completed in 0.005371 seconds
+2025-06-19 22:42:02,649 - reviewer.sectionalize - DEBUG - Entering: get_incose_examples
+2025-06-19 22:42:02,655 - reviewer.sectionalize - DEBUG - Exiting: get_incose_examples
+2025-06-19 22:42:02,655 - reviewer.sectionalize - DEBUG - get_incose_examples completed in 0.003569 seconds

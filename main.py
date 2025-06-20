@@ -19,21 +19,25 @@ from langchain_core.runnables import (
     RunnablePassthrough,
     RunnableSequence
 )
-from aiswre.utils import pd_utils
-from aiswre.promptengg import prompt_evaluation as pe
-from aiswre.promptengg import build_templates
+from aiswre.prj_logger import ProjectLogger
+from aiswre.utils import pd_utils, prompt_utils
 from aiswre.preprocess.sectionalize import Sectionalize
-
+from aiswre.promptengg import prompteval as pe
 
 # load environment variables
 config = dotenv_values(".env")
 
+# define output data folder
+output_data_folder = './aiswre/data'
+
+# load logger
+proj_log = ProjectLogger('reviewer',f"{output_data_folder}/reviewer.log").config()
+
 # data ingestion (parse incose guide)
 incose_guide_fp = './aiswre/data/incose_gtwr.pdf'
-output_data_folder = './aiswre/data/'
 sectionalizer = Sectionalize(regex=r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d')
 text = sectionalizer.get_pdf_text(fp=Path(incose_guide_fp), start_page=65, end_page=115)
-sectionalizer.save_text(text=text, op=Path('./aiswre/data/extract.txt'))
+sectionalizer.save_text(text=text, op=Path(f"{output_data_folder}/extract.txt"))
 incose_guide_sections_df = sectionalizer.get_sections_df(text)
 incose_guide_sections_df = sectionalizer.add_section_text(incose_guide_sections_df, text)
 incose_guide_sections_df =sectionalizer.get_incose_definition(incose_guide_sections_df)
@@ -42,25 +46,14 @@ incose_guide_sections_df =sectionalizer.get_incose_examples(incose_guide_section
 pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
 
 # add templates for each rule to incose_guide_sections_df using a specified base template
-prompt_base_templates= {
-    'req-reviewer-instruct-1': {
-        'name': 'req-reviewer-instruct-1',
-        'description': 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.',
-        'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
-        'user': 'Requirement: {req}\nCriteria: {definition}\nExamples: {examples}'
-    },
-     'req-reviewer-instruct-2': {
-         'name': 'req-reviewer-instruct-2'
-     }  
-}
-# select a base template
+prompt_base_templates = pe.load_prompt_base_templates()
+# select base template
 base_template = prompt_base_templates['req-reviewer-instruct-1']
 base_template_system_message = base_template['system']
 base_template_user_message = base_template['user']
-
+# assign base template to incose guide
 incose_guide_sections_df['system_base_message'] = base_template_system_message
 incose_guide_sections_df['user_base_message'] = base_template_user_message
-
 # replace relevant template variables with INCOSE data (e.g., definition, examples)
 incose_guide_sections_df['system_message'] = incose_guide_sections_df['system_base_message']
 incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_base_message','definition']].apply(lambda l: l[0].replace('{definition}',l[1]), axis=1)
@@ -70,38 +63,12 @@ pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_g
 # load requirements dataset
 reqs_df = pd.read_excel('./aiswre/data/software_requirements.xlsx')
 
-# define evaluation funcs
-eval_funcs = {
-    'eval_is_in_passive_voice':pe.eval_is_in_passive_voice,
-    'eval_if_vague_verb':pe.eval_if_vague_verb,
-    'eval_has_a_def_article':pe.eval_has_a_def_article,
-    'eval_has_vague_terms': pe.eval_has_vague_terms,
-    'eval_has_escape_clause': pe.eval_has_escape_clause
-}
-
-# build templates
-def assemble_prompt_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:
-    '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
-    return ChatPromptTemplate.from_messages([
-            ("system",system_message),
-            ("human", user_message)
-        ])
-
-prompt_templates_config = {}
-for index, row in tqdm(incose_guide_sections_df.iterrows()):
-    
-    system_message=row["system_message"]
-    user_message=row["user_message"]
-
-    try:
-        prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
-    except ValueError:
-        system_message=system_message.replace(".} ",".]")
-        user_message=user_message.replace(".} ",".]")
-        prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
+# load eval func to incose rules map (associations)
+prompt_associations = pe.load_prompt_associations()
+prompt_templates_config = prompt_utils.assemble_prompt_templates_from_df(incose_guide_sections_df, system_message_colname='system_message', user_message_colname='user_message')
 
 # run evaluations on requirements dataset
-pe.call_evals(reqs_df, eval_funcs, 'Requirement')
+pe.call_evals(reqs_df, pe.get_eval_funcs(prompt_associations), 'Requirement')
 pe.get_failed_evals(reqs_df)
 pd_utils.to_excel(reqs_df, output_data_folder, False, 'reqs_df_evaluation')  
 print(reqs_df.head(5))
