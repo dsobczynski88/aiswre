@@ -60,12 +60,16 @@ incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_base_
 incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_message','examples']].apply(lambda l: l[0].replace('{examples}',l[1]), axis=1)
 pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
 
+# build prompt templates based on incose rules
+prompt_templates= prompt_utils.assemble_prompt_templates_from_df(incose_guide_sections_df, system_message_colname='system_message', user_message_colname='user_message')
+
 # load requirements dataset
 reqs_df = pd.read_excel('./aiswre/data/software_requirements.xlsx')
 
-# load eval func to incose rules map (associations)
+# load prompt associations which associates evaluation funcs with specific prompt templates (incose rules)
 prompt_associations = pe.load_prompt_associations()
-prompt_templates_config = prompt_utils.assemble_prompt_templates_from_df(incose_guide_sections_df, system_message_colname='system_message', user_message_colname='user_message')
+# has the associations into a config dictionary where each key value is a dictionary containing the eval func and associated template 
+evals_config = pe.load_evaluation_config(prompt_associations, prompt_templates) # might not need this --- could combine with above "prompt associations" variable
 
 # run evaluations on requirements dataset
 pe.call_evals(reqs_df, pe.get_eval_funcs(prompt_associations), 'Requirement')
@@ -75,34 +79,11 @@ print(reqs_df.head(5))
 
 reqs_df_filt = reqs_df.loc[reqs_df['failed_evals'].str.len() > 0].head(3) 
 
-# load evaluations configuration
-evals_config = {
-    'eval_is_in_passive_voice':{
-        'func':pe.eval_is_in_passive_voice,
-        'template': prompt_templates_config['R2']
-    },
-    'eval_if_vague_verb':{
-        'func': pe.eval_if_vague_verb,
-        'template': prompt_templates_config['R3']
-    },
-    'eval_has_a_def_article':{
-        'func': pe.eval_has_a_def_article,
-        'template': prompt_templates_config['R5']
-    },      
-    'eval_has_vague_terms': {
-        'func': pe.eval_has_vague_terms,
-        'template': prompt_templates_config['R7']
-    },
-    'eval_has_escape_clause':{
-        'func':pe.eval_has_escape_clause,
-        'template': prompt_templates_config['R8']
-    }
-}
-
 # instantiate openai client
 secret_key = config['OPENAI_API_KEY']
 client = ChatOpenAI(api_key=secret_key, model='gpt-4o-mini')
 
+'''
 def assemble_chain_from_template(template, llm):
     chain = RunnableLambda(lambda x: {"req":x}) | template | llm | (lambda x: x.content) | (lambda x: ''.join(re.findall('Final Revision:(.*)',x)))
     return chain
@@ -130,7 +111,7 @@ async def run_multiple_chains(chains, _args):
     results = await asyncio.gather(*tasks)
     print('results fetched...')
     return results
-
+'''
 
 # get failed evals for all requirements
 failed_evals = reqs_df_filt['failed_evals'].values
