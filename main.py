@@ -23,6 +23,7 @@ from aiswre.prj_logger import ProjectLogger
 from aiswre.utils import pd_utils, prompt_utils
 from aiswre.preprocess.sectionalize import Sectionalize
 from aiswre.promptengg import prompteval as pe
+from aiswre.promptengg.promptrunner import ParallelPromptRunner
 
 # load environment variables
 config = dotenv_values(".env")
@@ -71,127 +72,55 @@ prompt_associations = pe.load_prompt_associations()
 # has the associations into a config dictionary where each key value is a dictionary containing the eval func and associated template 
 evals_config = pe.load_evaluation_config(prompt_associations, prompt_templates) # might not need this --- could combine with above "prompt associations" variable
 
-# run evaluations on requirements dataset
-pe.call_evals(reqs_df, pe.get_eval_funcs(prompt_associations), 'Requirement')
-pe.get_failed_evals(reqs_df)
-pd_utils.to_excel(reqs_df, output_data_folder, False, 'reqs_df_evaluation')  
-print(reqs_df.head(5))
-
-reqs_df_filt = reqs_df.loc[reqs_df['failed_evals'].str.len() > 0].head(3) 
-
 # instantiate openai client
 secret_key = config['OPENAI_API_KEY']
-client = ChatOpenAI(api_key=secret_key, model='gpt-4o-mini')
 
-'''
-def assemble_chain_from_template(template, llm):
-    chain = RunnableLambda(lambda x: {"req":x}) | template | llm | (lambda x: x.content) | (lambda x: ''.join(re.findall('Final Revision:(.*)',x)))
-    return chain
-
-def assemble_eval_chain_list(ids, evals, llm):
-    chains=[]
-    for _id in ids:
-        template = evals[_id]["template"]
-        chains.append(assemble_chain_from_template(template, llm))
-    composed_chain = RunnableSequence(*chains)
-    return composed_chain
-
-async def run_chain(chain, inputs):
-    if inputs is not None:
-        return await chain.ainvoke(inputs)
-    else:
-        raise ValueError
-
-async def run_multiple_chains(chains, _args):
-    tasks=[]
-    if _args is not None:
-        for i, args in enumerate(_args):
-            tasks.append(run_chain(chains[i], args))
-    print('awaiting results...')
-    results = await asyncio.gather(*tasks)
-    print('results fetched...')
-    return results
-'''
-
-# get failed evals for all requirements
-failed_evals = reqs_df_filt['failed_evals'].values
-
+# define pydantic model
 class Requirement:
     revision: str = Field("A revised software requirement")
 
-pydantic_model = Requirement
-#llm = client.with_structured_output(pydantic_model, method="json_schema")
-llm = client
+# instantiate prompt runner
+ppr = ParallelPromptRunner(
+    llm=ChatOpenAI(api_key=secret_key, model='gpt-4o-mini'),
+    pydantic_model=None
+)
 
-chains=[]
-for fe in failed_evals:
-    chains.append(assemble_eval_chain_list(fe, evals_config, llm))
-
-_args=reqs_df_filt['Requirement'].values
-
-print(chains)
-print(_args)
-
-#result = chains[0].invoke(_args[0])
-#print(result)
-
-print(len(chains))
-print(len(_args))
-
-LOAD_DATA=True
-
-if not LOAD_DATA:
-    async_tasks = run_multiple_chains(chains, _args)
+def run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement'):
+    failed_evals = df[failed_eval_col].values
+    _args=df[id_col].values
+    chains=[runner.assemble_eval_chain_list(fe, evals_config, runner.llm) for fe in failed_evals]
+    async_tasks = runner.run_multiple_chains(chains, _args)
     results = asyncio.run(async_tasks)
     results_df = pd.DataFrame(results)
-    results_df.rename(columns={0:'Requirement'}, inplace=True)
-    pd_utils.to_excel(reqs_df_filt, output_data_folder, False, 'reqs_df_filt')
-    pd_utils.to_excel(results_df, output_data_folder, False, 'results_df')
+    results_df = results_df.rename(columns={0:'Requirement'})
+    return results_df
 
-results_df = pd.read_excel(f"{output_data_folder}/results_df.xlsx")
-try:
-    results_df.rename(columns={0:'Requirement'}, inplace=True)
-except Exception as e:
-    print(results_df.columns)
-# run evaluations on requirements dataset
-pe.call_evals(results_df, eval_funcs, 'Requirement')
-pe.get_failed_evals(results_df)
-pd_utils.to_excel(results_df, output_data_folder, 1, 'results_df_evaluation')  
-print(results_df.head(5))
-
-'''
-reqs_df = pd.DataFrame({'req': results})
-pe.call_evals(reqs_df, eval_funcs, 'req')
-# define prompts to revise requirements not meeting criteria
-pe.get_failed_evals(reqs_df)  
-print(reqs_df.head(5))
-'''
-
-
-
-# build chains for each requirement (based on failed evaluations)
-
-'''
-evals_config = {
-    'eval_is_in_passive_voice':{
-        'func':pe.eval_is_in_passive_voice,
-        'template': ChatPromptTemplate.from_template("Revise the requirement to avoid use of passive voice: {req}")
-    },
-    'eval_if_vague_verb':{
-        'func': pe.eval_if_vague_verb,
-        'template': ChatPromptTemplate.from_template("Revise the requirement to avoid use of vague verbs: {req}")
-    },
-        'eval_has_a_def_article':{
-            'func': pe.eval_has_a_def_article,
-            'template': ChatPromptTemplate.from_template("Revise the requirement to avoid use of definite articles like \"a\": {req}")
-    },      
-    'eval_has_vague_terms': {
-        'func': pe.eval_has_vague_terms,
-        'template': ChatPromptTemplate.from_template("Revise the requirement to avoid use of vague terms: {req}")
-    },
-    'eval_has_escape_clause':{
-        'func':pe.eval_has_escape_clause,
-        'template': ChatPromptTemplate.from_template("Revise the requirement to avoid use of escape clauses: {req}")
-    }
-}
-'''
+def run_eval_loop(df, prompt_associations, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement', max_iter=3):
+    # run evaluation algorithm
+    eval_funcs = pe.get_eval_funcs(prompt_associations)
+    for iter in range(max_iter):
+        # run evals on df
+        df = pe.call_evals(df, eval_funcs, 'Requirement')
+        df = pe.get_failed_evals(df)
+        # for reqs where all evals passed, pop off these rows into revised_df
+        popped_rows = df.drop(df[df[failed_eval_col].str.len() == 0].index)
+        if popped_rows:
+            try:
+                assert revised_df
+            except NameError:
+                revised_df = popped_rows
+            else:
+                revised_df = pd.concat([revised_df, popped_rows], axis=0, ignore_index=False)
+                pd_utils.to_excel(revised_df, output_data_folder, iter, 'revised_df')
+        # update df
+        df = df[df[failed_eval_col].str.len() > 0]
+        pd_utils.to_excel(df, output_data_folder, iter, 'df_pre_prompt')
+        if not len(df):
+            break
+        else:
+            # run prompts for requirements containing failed evals
+            df = run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col, id_col)
+            pd_utils.to_excel(df, output_data_folder, iter, 'df_post_prompt')
+    else:
+        #log that not all requirements fully passed
+        pass

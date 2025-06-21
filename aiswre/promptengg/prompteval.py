@@ -17,6 +17,7 @@ def call_evals(df: pd.DataFrame, eval_funcs: List, col: str) -> None:
             df.loc[_index, key] = prompt_utils.convert_bool_to_ohe(
                 eval_result
             )
+    return df
 
 @get_logs
 def get_failed_evals(df: pd.DataFrame):

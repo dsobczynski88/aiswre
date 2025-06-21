@@ -32,8 +32,6 @@ class ParallelPromptRunner:
         if use_structured_llm:
             #self.llm = self.llm.with_structured_output(pydantic_model, method="function_calling")
             self.llm = self.llm.with_structured_output(pydantic_model, method="json_schema")    
-        self.chain_contexts = chain_contexts
-        self.num_trials = num_trials
         self._data_directory = Path.cwd() / 'data'
 
     @property
@@ -44,25 +42,7 @@ class ParallelPromptRunner:
         print(f"""
             data directory: {self._data_directory}
             """)
-
-    @get_logs(LOGGERNAME)
-    def run(self, prompt_type, templates):
-        chain_outputs = self.assemble_chains(prompt_type, templates)
-        if self.chain_contexts is not None:
-            async_tasks = self.run_multiple_chains(chain_outputs[0], chain_outputs[1])
-        else:
-            async_tasks = self.run_multiple_chains(chain_outputs, None)
-        return asyncio.run(async_tasks)
     
-    @get_logs(LOGGERNAME)
-    def assemble_chains(self, prompt_type, templates):       
-        template = templates[prompt_type]['template']
-        chain = template | self.llm
-        if self.chain_contexts is not None:
-            return (chain, self.chain_contexts)
-        else:
-            return chain
-     
     @get_logs(LOGGERNAME)
     def assemble_chain_from_template(template, llm):
         chain = RunnableLambda(lambda x: {"req":x}) | template | llm | (lambda x: x.content) | (lambda x: ''.join(re.findall('Final Revision:(.*)',x)))
