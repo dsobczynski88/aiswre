@@ -1,5 +1,6 @@
 import pandas as pd
 import flatdict
+import ast
         
 def flatten(df):
     df = flatten_df_series_dict(df, get_types_dict(df))
@@ -97,3 +98,31 @@ def to_excel(df, output_folder, _id, df_name):
         df.to_excel(f'{output_folder}/{df_name}_{_id}.xlsx')
     else:
         df.to_excel(f'{output_folder}/{df_name}.xlsx')
+
+def recast_str(_str:str, na_value=[]):
+    """This function takes in a str and default value for errors or NaNs. The built-in
+    python function eval() is applied on the input string in effort to cast the string
+    to some expected data type (e.g., list, dict). This is particularly useful as exporting
+    pandas dataframes to excel may result in loss of data typing and this is a way to 
+    recover this infomation. In the event there is a type or syntax error with the eval()
+    function, the na_value is returned.
+
+    """ 
+    if type(_str) == float:
+        return na_value
+    if str(_str) == 'nan':
+        return na_value
+    else:
+        try:
+            casted = ast.literal_eval(_str)
+        except SyntaxError:
+            print(f'The following string was unable to be casted using eval()')
+            print(f'The value will be converted to data type: {type(na_value)}')
+            return na_value
+        except TypeError:
+            print(f'The input data type: {type(_str).__name__} cannot be evaluated')
+            return na_value
+        except NameError:
+            return na_value
+        else:
+            return casted   

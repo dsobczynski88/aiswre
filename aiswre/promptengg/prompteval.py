@@ -7,25 +7,29 @@ import pandas as pd
 from aiswre.utils import pd_utils, prompt_utils
 from aiswre.prj_logger import get_logs
 
-@get_logs
-def call_evals(df: pd.DataFrame, eval_funcs: List, col: str) -> None:
+BASE_LOGGERNAME = "reviewer"
+LOGGERNAME = f"{BASE_LOGGERNAME}.prompteval"
+
+@get_logs(LOGGERNAME)
+def call_evals(df: pd.DataFrame, eval_config: dict, col: str) -> None:
     # run evals for each row of the dataframe
     for _index, _row in df.iterrows():
-        for key, value in eval_funcs.items(): 
-            eval_func_to_call = eval_funcs[key] 
+        for key, value in eval_config.items():  # fix this line
+            eval_func_to_call = eval_config[key]["func"] 
             eval_result = eval_func_to_call(_row[col])
             df.loc[_index, key] = prompt_utils.convert_bool_to_ohe(
                 eval_result
             )
+    print(df.head(5))
     return df
 
-@get_logs
+@get_logs(LOGGERNAME)
 def get_failed_evals(df: pd.DataFrame):
     eval_cols = [c for c in df.columns if c.startswith("eval")]
     df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
     return df
 
-@get_logs
+@get_logs(LOGGERNAME)
 def load_prompt_base_templates():
     '''define a set of base template descriptions and messages'''
     prompt_base_templates = {
@@ -41,13 +45,13 @@ def load_prompt_base_templates():
     }
     return prompt_base_templates
 
-@get_logs
+@get_logs(LOGGERNAME)
 def load_prompt_associations():
     '''define the associations between prompt evaluations and INCOSE rules'''
     prompt_associations = [
         ('eval_is_in_passive_voice',eval_is_in_passive_voice,'R2'),
         ('eval_if_vague_verb',eval_if_vague_verb,'R3'),
-        ('eval_has_a_def_article',eval_has_a_def_article,'R5'),
+        #('eval_has_a_def_article',eval_has_a_def_article,'R5'),
         ('eval_has_vague_terms',eval_has_vague_terms,'R7'),
         ('eval_has_escape_clause',eval_has_escape_clause,'R8'),
     ]
@@ -60,7 +64,7 @@ def get_eval_funcs(prompt_associations):
     return funcs
     
 
-@get_logs
+@get_logs(LOGGERNAME)
 def load_evaluation_config(prompt_associations, prompt_templates):
     '''load evaluations configuration'''
     evaluation_config = {}
@@ -70,7 +74,7 @@ def load_evaluation_config(prompt_associations, prompt_templates):
         evaluation_config[assoc[0]]["template"] = prompt_templates[assoc[2]]
     return evaluation_config
 
-@get_logs    
+@get_logs(LOGGERNAME)    
 def eval_is_in_passive_voice(text: str) -> bool:
     """
     R2: Criteria from 4.1.2 INCOSE Guide to Writing Requirements:
@@ -79,7 +83,7 @@ def eval_is_in_passive_voice(text: str) -> bool:
     'check for pattern shall + be + [main_verb]'
     pass
 
-@get_logs
+@get_logs(LOGGERNAME)
 def eval_if_vague_verb(text: str) -> bool:
     """
     R3: Criteria from 4.1.3 INCOSE Guide to Writing Requirements:
@@ -94,7 +98,7 @@ def eval_if_vague_verb(text: str) -> bool:
     else:
         return False
 
-@get_logs
+@get_logs(LOGGERNAME)
 def eval_has_a_def_article(text: str) -> bool:
     """
     R5: Criteria from 4.1.5 INCOSE Guide to Writing Requirements:
@@ -105,7 +109,7 @@ def eval_has_a_def_article(text: str) -> bool:
     else:
         return False
 
-@get_logs
+@get_logs(LOGGERNAME)
 def eval_has_vague_terms(text: str) -> bool:
     """
     R7: Criteria from 4.1.7 INCOSE Guide to Writing Requirements:
@@ -124,7 +128,7 @@ def eval_has_vague_terms(text: str) -> bool:
     else:
         return False
 
-@get_logs
+@get_logs(LOGGERNAME)
 def eval_has_escape_clause(text:str) -> bool:
     """
     R8: Criteria from 4.1.8 INCOSE Guide to Writing Requirements:

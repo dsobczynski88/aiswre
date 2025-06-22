@@ -36,7 +36,11 @@ def get_logs(loggername):
                 end_time = time.perf_counter()
                 elapsed_time = end_time - start_time
                 logger.debug(f"{func.__name__} completed in {elapsed_time:.6f} seconds")
-                return output
+                try:
+                    return output
+                except Exception as e:
+                    logger.debug(f"The following error occurred: {e}")
+                    return None
         return wrapper
     return decorator
 
