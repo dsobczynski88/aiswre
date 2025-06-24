@@ -1,14 +1,55 @@
 import re
+import logging
 import asyncio
 import nest_asyncio
 from pathlib import Path
 from typing import Union, List
 import pandas as pd
-from aiswre.utils import pd_utils, prompt_utils
-from aiswre.prj_logger import get_logs
+from tqdm import tqdm
+from langchain_core.prompts.chat import ChatPromptTemplate
+from src import pd_utils
+from src.prj_logger import get_logs
 
 BASE_LOGGERNAME = "reviewer"
 LOGGERNAME = f"{BASE_LOGGERNAME}.prompteval"
+proj_logger = logging.getLogger(LOGGERNAME)
+
+
+@get_logs(LOGGERNAME)
+def assemble_prompt_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:
+    '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
+    return ChatPromptTemplate.from_messages([
+            ("system",system_message),
+            ("human", user_message)
+        ])
+
+@get_logs(LOGGERNAME) 
+def assemble_prompt_templates_from_df(df, system_message_colname='system_message', user_message_colname='user_message'):
+    '''Loop over dataframe to build a unique prompt template for each row'''
+    prompt_templates_config = {}
+    for index, row in tqdm(df.iterrows()):
+        system_message=row[system_message_colname]
+        user_message=row[user_message_colname]
+        try:
+            prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
+        except ValueError:
+            system_message=system_message.replace(".} ",".]")
+            user_message=user_message.replace(".} ",".]")
+            prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
+    return prompt_templates_config
+    
+
+@get_logs(LOGGERNAME)
+def add_spaces(x: str) -> str:
+    #return f" {x} "
+    return x
+
+@get_logs(LOGGERNAME)
+def convert_bool_to_ohe(bool_result: bool) -> int:
+    if bool_result:
+        return 1
+    else:
+        return 0
 
 @get_logs(LOGGERNAME)
 def call_evals(df: pd.DataFrame, eval_config: dict, col: str) -> None:
@@ -17,10 +58,9 @@ def call_evals(df: pd.DataFrame, eval_config: dict, col: str) -> None:
         for key, value in eval_config.items():  # fix this line
             eval_func_to_call = eval_config[key]["func"] 
             eval_result = eval_func_to_call(_row[col])
-            df.loc[_index, key] = prompt_utils.convert_bool_to_ohe(
+            df.loc[_index, key] = convert_bool_to_ohe(
                 eval_result
             )
-    print(df.head(5))
     return df
 
 @get_logs(LOGGERNAME)
@@ -57,13 +97,6 @@ def load_prompt_associations():
     ]
     return prompt_associations
 
-def get_eval_funcs(prompt_associations):
-    funcs = []
-    for assoc in prompt_associations:
-        funcs.append(assoc[1])
-    return funcs
-    
-
 @get_logs(LOGGERNAME)
 def load_evaluation_config(prompt_associations, prompt_templates):
     '''load evaluations configuration'''
@@ -93,7 +126,7 @@ def eval_if_vague_verb(text: str) -> bool:
         "support", "process", "handle", "track", "manage", "flag"
     ]
     for verb in vague_verbs:
-        if prompt_utils.add_spaces(verb) in text:
+        if add_spaces(verb) in text:
             return True
     else:
         return False
@@ -104,7 +137,7 @@ def eval_has_a_def_article(text: str) -> bool:
     R5: Criteria from 4.1.5 INCOSE Guide to Writing Requirements:
         check if text contains indefinite article \"a\" 
     """
-    if prompt_utils.add_spaces("a") in text:
+    if add_spaces("a") in text:
         return True
     else:
         return False
@@ -123,7 +156,7 @@ def eval_has_vague_terms(text: str) -> bool:
         "usually", "approximately", "sufficiently","typically"
     ]
     for term in vague_terms:
-        if prompt_utils.add_spaces(term) in text:
+        if add_spaces(term) in text:
             return True
     else:
         return False
@@ -142,7 +175,61 @@ def eval_has_escape_clause(text:str) -> bool:
          "if practicable"
     ]
     for clause in clauses:
-        if prompt_utils.add_spaces(clause) in text:
+        if add_spaces(clause) in text:
             return True
     else:
         return False
+    
+@get_logs(LOGGERNAME)
+def run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement'):
+    failed_evals = df[failed_eval_col].values
+    _args=df[id_col].values
+    chains=runner.assemble_eval_chain_list(failed_evals, evals_config)
+    print(chains)
+    print(type(chains), len(chains), type(chains[0]))
+    async_tasks = runner.run_multiple_chains(chains, _args)
+    results = asyncio.run(async_tasks)
+    results_df = pd.DataFrame(results)
+    results_df = results_df.rename(columns={0:id_col})
+    return results_df
+
+@get_logs(LOGGERNAME)
+def run_eval_loop(df, runner, evals_config, output_data_folder, failed_eval_col='failed_evals', id_col='Requirement', max_iter=3):
+    # run evaluation algorithm
+    proj_logger.info('Entering: run_eval_loop')
+    for iter in range(max_iter):
+        proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
+        if iter > 0:
+            df = pd.read_excel(f"{output_data_folder}/df_{iter-1}.xlsx")
+            #id_col = f"{id_col}_{iter-1}"
+        df = df[[id_col]]
+        #df[failed_eval_col] = df[failed_eval_col].apply(lambda s: pd_utils.recast_eval(s),'')
+        proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
+        # run evals on df
+        df = call_evals(df, evals_config, id_col)
+        df = get_failed_evals(df)
+        proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
+        # for reqs where all evals passed, pop off these rows into revised_df
+        if (df is not None):
+            popped_cond = df[failed_eval_col].str.len() == 0
+            popped_rows = df[popped_cond]#.index
+            if len(popped_rows) > 0:
+                proj_logger.info(f'Requirements were found that passed all criteria during iter num {iter} of run_eval_loop')
+                #pd_utils.to_excel(popped_rows, output_data_folder, str(iter), 'passed_reqs_df')
+            proj_logger.info(f'The Requirements df was originally {len(df)} rows')
+            df = df[~popped_cond]
+            proj_logger.info(f'The Requirements df is now {len(df)} rows')
+            if len(df) > 0:
+                # run prompts for requirements containing failed evals
+                df = run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col, id_col)
+                #if iter == max_iter:
+                df = call_evals(df, evals_config, id_col)
+                df = get_failed_evals(df)
+                #df_copy = df.copy()
+                #df_copy.columns = [f"{c}_{iter}" for c in df_copy.columns]
+                print(df.columns)
+                df['revision'] = iter + 1
+                df = df[[id_col,'revision']]
+                pd_utils.to_excel(df, output_data_folder, str(iter), 'df')
+                #del df_copy
+            proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')

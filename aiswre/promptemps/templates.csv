@@ -1,5 +1,0 @@
-,prompt_template,prompt_value,Unnamed: 0,name,description,system,user,var_instructions
-0,"system message with {instructions} for prompt-template-1
-user message with {instructions} for prompt-template-1
-",,0,prompt-template-1,description of prompt-template-1,system message with {instructions} for prompt-template-1,user message with {instructions} for prompt-template-1, these are the instructions
-1,,,1,prompt-template-2,description of prompt-template-2,system message with {instructions} for prompt-template-2,user message with {instructions} for prompt-template-2, these are the instructions
