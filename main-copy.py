@@ -74,8 +74,6 @@ prompt_templates= pe.assemble_prompt_templates_from_df(incose_guide_sections_df,
 reqs_df = pd.read_excel('./src/data/software_requirements_1.xlsx', index_col=[0])
 reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})
 
-#.head(10)
-
 # load prompt associations which associates evaluation funcs with specific prompt templates (incose rules)
 prompt_associations = pe.load_prompt_associations()
 # has the associations into a config dictionary where each key value is a dictionary containing the eval func and associated template 
