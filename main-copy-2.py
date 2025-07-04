@@ -22,8 +22,8 @@ from langchain_core.runnables import (
 )
 from src.prj_logger import ProjectLogger
 from src import pd_utils
-from src.components.sectionalize import Sectionalize
-from src.components.clean import TextPreprocessor
+#from src.components.sectionalize import Sectionalize
+from src.components.preprocess import TextPreprocessor, Sectionalize, PreprocessIncoseGuide
 from src.components import prompteval as pe
 from src.components.promptrunner import PromptRunner
 

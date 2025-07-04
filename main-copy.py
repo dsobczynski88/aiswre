@@ -51,7 +51,6 @@ incose_guide_sections_df =sectionalizer.get_incose_definition(incose_guide_secti
 incose_guide_sections_df =sectionalizer.get_incose_elaboration(incose_guide_sections_df)
 incose_guide_sections_df =sectionalizer.get_incose_examples(incose_guide_sections_df)
 pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
-
 # add templates for each rule to incose_guide_sections_df using a specified base template
 prompt_base_templates = pe.load_prompt_base_templates()
 # select base template
@@ -66,10 +65,8 @@ incose_guide_sections_df['system_message'] = incose_guide_sections_df['system_ba
 incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_base_message','definition']].apply(lambda l: l[0].replace('{definition}',l[1]), axis=1)
 incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_message','examples']].apply(lambda l: l[0].replace('{examples}',l[1]), axis=1)
 pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
-
 # build prompt templates based on incose rules
 prompt_templates= pe.assemble_prompt_templates_from_df(incose_guide_sections_df, system_message_colname='system_message', user_message_colname='user_message')
-
 # load requirements dataset
 reqs_df = pd.read_excel('./src/data/software_requirements_1.xlsx', index_col=[0])
 reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})

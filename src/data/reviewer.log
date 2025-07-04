@@ -4999,3 +4999,550 @@
 2025-06-27 16:11:13,914 - reviewer.prompteval - DEBUG - Entering: load_evaluation_config
 2025-06-27 16:11:13,914 - reviewer.prompteval - DEBUG - Exiting: load_evaluation_config
 2025-06-27 16:11:13,914 - reviewer.prompteval - DEBUG - load_evaluation_config completed in 0.000628 seconds
+2025-06-28 21:46:35,467 - reviewer.sectionalize - DEBUG - Entering: get_pdf_text
+2025-06-28 21:46:35,987 - reviewer.sectionalize - DEBUG - Exiting: get_pdf_text
+2025-06-28 21:46:35,989 - reviewer.sectionalize - DEBUG - get_pdf_text completed in 0.514910 seconds
+2025-06-28 21:46:35,989 - reviewer.sectionalize - DEBUG - Entering: save_text
+2025-06-28 21:46:35,993 - reviewer.sectionalize - DEBUG - Exiting: save_text
+2025-06-28 21:46:35,996 - reviewer.sectionalize - DEBUG - save_text completed in 0.006716 seconds
+2025-06-28 21:46:36,008 - reviewer.sectionalize - DEBUG - Entering: save_text
+2025-06-28 21:46:36,010 - reviewer.sectionalize - DEBUG - Exiting: save_text
+2025-06-28 21:46:36,011 - reviewer.sectionalize - DEBUG - save_text completed in 0.003461 seconds
+2025-06-28 21:46:36,012 - reviewer.sectionalize - DEBUG - Entering: parse_incose_guide
+2025-06-28 21:46:36,012 - reviewer.sectionalize - DEBUG - Entering: get_sections_df
+2025-06-28 21:46:36,016 - reviewer.sectionalize - DEBUG - Exiting: get_sections_df
+2025-06-28 21:46:36,016 - reviewer.sectionalize - DEBUG - get_sections_df completed in 0.004230 seconds
+2025-06-28 21:46:36,016 - reviewer.sectionalize - DEBUG - Entering: add_section_text
+2025-06-28 21:46:36,033 - reviewer.sectionalize - DEBUG - Exiting: add_section_text
+2025-06-28 21:46:36,033 - reviewer.sectionalize - DEBUG - add_section_text completed in 0.017462 seconds
+2025-06-28 21:46:36,035 - reviewer.sectionalize - DEBUG - Entering: get_incose_definition
+2025-06-28 21:46:36,041 - reviewer.sectionalize - DEBUG - Exiting: get_incose_definition
+2025-06-28 21:46:36,043 - reviewer.sectionalize - DEBUG - get_incose_definition completed in 0.008594 seconds
+2025-06-28 21:46:36,043 - reviewer.sectionalize - DEBUG - Entering: get_incose_examples
+2025-06-28 21:46:36,045 - reviewer.sectionalize - DEBUG - Exiting: get_incose_examples
+2025-06-28 21:46:36,045 - reviewer.sectionalize - DEBUG - get_incose_examples completed in 0.002204 seconds
+2025-06-28 21:46:36,045 - reviewer.sectionalize - DEBUG - Entering: clean_incose_examples
+2025-06-28 21:46:36,049 - reviewer.sectionalize - DEBUG - Exiting: clean_incose_examples
+2025-06-28 21:46:36,049 - reviewer.sectionalize - DEBUG - clean_incose_examples completed in 0.003588 seconds
+2025-06-28 21:46:36,049 - reviewer.sectionalize - DEBUG - Exiting: parse_incose_guide
+2025-06-28 21:46:36,051 - reviewer.sectionalize - DEBUG - parse_incose_guide completed in 0.039583 seconds
+2025-06-28 21:46:36,051 - reviewer.prompteval - DEBUG - Entering: load_prompt_base_templates
+2025-06-28 21:46:36,051 - reviewer.prompteval - DEBUG - Exiting: load_prompt_base_templates
+2025-06-28 21:46:36,051 - reviewer.prompteval - DEBUG - load_prompt_base_templates completed in 0.000848 seconds
+2025-06-28 21:46:36,065 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_templates_from_df
+2025-06-28 21:46:36,079 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,081 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,081 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.003563 seconds
+2025-06-28 21:46:36,081 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,081 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,081 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001063 seconds
+2025-06-28 21:46:36,086 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001256 seconds
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000863 seconds
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000706 seconds
+2025-06-28 21:46:36,087 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,091 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,091 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000674 seconds
+2025-06-28 21:46:36,091 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,091 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,092 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000619 seconds
+2025-06-28 21:46:36,092 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,092 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,092 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000514 seconds
+2025-06-28 21:46:36,092 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,094 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,100 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.006426 seconds
+2025-06-28 21:46:36,100 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,102 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,102 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001999 seconds
+2025-06-28 21:46:36,104 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,104 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,106 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001466 seconds
+2025-06-28 21:46:36,108 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,113 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,113 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.006192 seconds
+2025-06-28 21:46:36,117 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,119 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,124 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.007578 seconds
+2025-06-28 21:46:36,128 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,130 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,130 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.003358 seconds
+2025-06-28 21:46:36,132 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,134 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,136 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.003190 seconds
+2025-06-28 21:46:36,138 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000830 seconds
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000770 seconds
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000635 seconds
+2025-06-28 21:46:36,140 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,143 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,143 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000616 seconds
+2025-06-28 21:46:36,144 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,144 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,144 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000740 seconds
+2025-06-28 21:46:36,144 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,181 - reviewer.prompteval - DEBUG - ValueError:Single '}' encountered in format string occurred in assemble_prompt_template_from_messages (line 102) of prompteval.py
+2025-06-28 21:46:36,181 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,181 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.036935 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000643 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000516 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000561 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000513 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000491 seconds
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,183 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000686 seconds
+2025-06-28 21:46:36,189 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,189 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,189 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000631 seconds
+2025-06-28 21:46:36,189 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000605 seconds
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000654 seconds
+2025-06-28 21:46:36,190 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,192 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,192 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000511 seconds
+2025-06-28 21:46:36,192 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,193 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,193 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000588 seconds
+2025-06-28 21:46:36,193 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,193 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,194 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000636 seconds
+2025-06-28 21:46:36,194 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,195 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,195 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000659 seconds
+2025-06-28 21:46:36,195 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,195 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,195 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000952 seconds
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000751 seconds
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000634 seconds
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000625 seconds
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000619 seconds
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000480 seconds
+2025-06-28 21:46:36,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,203 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,203 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000632 seconds
+2025-06-28 21:46:36,203 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,203 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:46:36,204 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000530 seconds
+2025-06-28 21:46:36,204 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_templates_from_df
+2025-06-28 21:46:36,204 - reviewer.prompteval - DEBUG - assemble_prompt_templates_from_df completed in 0.135928 seconds
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - Entering: load_prompt_associations
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - Exiting: load_prompt_associations
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - load_prompt_associations completed in 0.000594 seconds
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - Entering: load_evaluation_config
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - Exiting: load_evaluation_config
+2025-06-28 21:46:36,619 - reviewer.prompteval - DEBUG - load_evaluation_config completed in 0.000675 seconds
+2025-06-28 21:46:37,658 - reviewer.prompteval - DEBUG - Entering: run_eval_loop
+2025-06-28 21:46:37,658 - reviewer.prompteval - DEBUG - Exiting: run_eval_loop
+2025-06-28 21:46:37,658 - reviewer.prompteval - DEBUG - run_eval_loop completed in 0.000868 seconds
+2025-06-28 21:46:37,658 - reviewer.prompteval - DEBUG - The following error occurred: cannot access local variable 'output' where it is not associated with a value
+2025-06-28 21:46:37,658 - reviewer.prompteval - DEBUG - Entering: generate_revisions_df
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - TypeError:argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'builtin_function_or_method' occurred in generate_revisions_df (line 124) of prompteval.py
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - Exiting: generate_revisions_df
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - generate_revisions_df completed in 0.008190 seconds
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - Entering: merge_revisions_df
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - NameError:name 'requirement_col' is not defined occurred in merge_revisions_df (line 141) of prompteval.py
+2025-06-28 21:46:37,668 - reviewer.prompteval - DEBUG - Exiting: merge_revisions_df
+2025-06-28 21:46:37,673 - reviewer.prompteval - DEBUG - merge_revisions_df completed in 0.000935 seconds
+2025-06-28 21:52:21,665 - reviewer.sectionalize - DEBUG - Entering: get_pdf_text
+2025-06-28 21:52:22,107 - reviewer.sectionalize - DEBUG - Exiting: get_pdf_text
+2025-06-28 21:52:22,107 - reviewer.sectionalize - DEBUG - get_pdf_text completed in 0.450753 seconds
+2025-06-28 21:52:22,107 - reviewer.sectionalize - DEBUG - Entering: save_text
+2025-06-28 21:52:22,107 - reviewer.sectionalize - DEBUG - Exiting: save_text
+2025-06-28 21:52:22,107 - reviewer.sectionalize - DEBUG - save_text completed in 0.002574 seconds
+2025-06-28 21:52:22,129 - reviewer.sectionalize - DEBUG - Entering: save_text
+2025-06-28 21:52:22,133 - reviewer.sectionalize - DEBUG - Exiting: save_text
+2025-06-28 21:52:22,133 - reviewer.sectionalize - DEBUG - save_text completed in 0.003111 seconds
+2025-06-28 21:52:22,133 - reviewer.sectionalize - DEBUG - Entering: parse_incose_guide
+2025-06-28 21:52:22,133 - reviewer.sectionalize - DEBUG - Entering: get_sections_df
+2025-06-28 21:52:22,135 - reviewer.sectionalize - DEBUG - Exiting: get_sections_df
+2025-06-28 21:52:22,135 - reviewer.sectionalize - DEBUG - get_sections_df completed in 0.003515 seconds
+2025-06-28 21:52:22,135 - reviewer.sectionalize - DEBUG - Entering: add_section_text
+2025-06-28 21:52:22,144 - reviewer.sectionalize - DEBUG - Exiting: add_section_text
+2025-06-28 21:52:22,147 - reviewer.sectionalize - DEBUG - add_section_text completed in 0.009162 seconds
+2025-06-28 21:52:22,147 - reviewer.sectionalize - DEBUG - Entering: get_incose_definition
+2025-06-28 21:52:22,157 - reviewer.sectionalize - DEBUG - Exiting: get_incose_definition
+2025-06-28 21:52:22,157 - reviewer.sectionalize - DEBUG - get_incose_definition completed in 0.010477 seconds
+2025-06-28 21:52:22,157 - reviewer.sectionalize - DEBUG - Entering: get_incose_examples
+2025-06-28 21:52:22,157 - reviewer.sectionalize - DEBUG - Exiting: get_incose_examples
+2025-06-28 21:52:22,159 - reviewer.sectionalize - DEBUG - get_incose_examples completed in 0.001057 seconds
+2025-06-28 21:52:22,159 - reviewer.sectionalize - DEBUG - Entering: clean_incose_examples
+2025-06-28 21:52:22,161 - reviewer.sectionalize - DEBUG - Exiting: clean_incose_examples
+2025-06-28 21:52:22,161 - reviewer.sectionalize - DEBUG - clean_incose_examples completed in 0.003134 seconds
+2025-06-28 21:52:22,163 - reviewer.sectionalize - DEBUG - Exiting: parse_incose_guide
+2025-06-28 21:52:22,163 - reviewer.sectionalize - DEBUG - parse_incose_guide completed in 0.029885 seconds
+2025-06-28 21:52:22,163 - reviewer.prompteval - DEBUG - Entering: load_prompt_base_templates
+2025-06-28 21:52:22,164 - reviewer.prompteval - DEBUG - Exiting: load_prompt_base_templates
+2025-06-28 21:52:22,164 - reviewer.prompteval - DEBUG - load_prompt_base_templates completed in 0.000766 seconds
+2025-06-28 21:52:22,172 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_templates_from_df
+2025-06-28 21:52:22,181 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,181 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,181 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001412 seconds
+2025-06-28 21:52:22,181 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000711 seconds
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000519 seconds
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,184 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000572 seconds
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000758 seconds
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000615 seconds
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000509 seconds
+2025-06-28 21:52:22,186 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000553 seconds
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000627 seconds
+2025-06-28 21:52:22,189 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,191 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,191 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000563 seconds
+2025-06-28 21:52:22,191 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,191 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000539 seconds
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000498 seconds
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,193 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,194 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000518 seconds
+2025-06-28 21:52:22,194 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,194 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,195 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000838 seconds
+2025-06-28 21:52:22,195 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.001092 seconds
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000828 seconds
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000605 seconds
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,197 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000639 seconds
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000528 seconds
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000499 seconds
+2025-06-28 21:52:22,200 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,205 - reviewer.prompteval - DEBUG - ValueError:Single '}' encountered in format string occurred in assemble_prompt_template_from_messages (line 102) of prompteval.py
+2025-06-28 21:52:22,205 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,205 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.004733 seconds
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000665 seconds
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,207 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000660 seconds
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000503 seconds
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000574 seconds
+2025-06-28 21:52:22,209 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,211 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,211 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000559 seconds
+2025-06-28 21:52:22,211 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,211 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000986 seconds
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000628 seconds
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,213 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000762 seconds
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000635 seconds
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000523 seconds
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000688 seconds
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000569 seconds
+2025-06-28 21:52:22,216 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000631 seconds
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000461 seconds
+2025-06-28 21:52:22,220 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000495 seconds
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000479 seconds
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,221 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000495 seconds
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000518 seconds
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000546 seconds
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000481 seconds
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Entering: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_template_from_messages
+2025-06-28 21:52:22,223 - reviewer.prompteval - DEBUG - assemble_prompt_template_from_messages completed in 0.000477 seconds
+2025-06-28 21:52:22,227 - reviewer.prompteval - DEBUG - Exiting: assemble_prompt_templates_from_df
+2025-06-28 21:52:22,227 - reviewer.prompteval - DEBUG - assemble_prompt_templates_from_df completed in 0.054175 seconds
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - Entering: load_prompt_associations
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - Exiting: load_prompt_associations
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - load_prompt_associations completed in 0.000572 seconds
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - Entering: load_evaluation_config
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - Exiting: load_evaluation_config
+2025-06-28 21:52:22,318 - reviewer.prompteval - DEBUG - load_evaluation_config completed in 0.000667 seconds
+2025-06-28 21:52:23,164 - reviewer.prompteval - DEBUG - Entering: run_eval_loop
+2025-06-28 21:52:23,164 - reviewer.prompteval - DEBUG - Exiting: run_eval_loop
+2025-06-28 21:52:23,164 - reviewer.prompteval - DEBUG - run_eval_loop completed in 0.000681 seconds
+2025-06-28 21:52:23,164 - reviewer.prompteval - DEBUG - The following error occurred: cannot access local variable 'output' where it is not associated with a value
+2025-06-28 21:52:23,164 - reviewer.prompteval - DEBUG - Entering: generate_revisions_df
+2025-06-28 21:52:23,272 - reviewer.prompteval - DEBUG - OSError:Cannot save file into a non-existent directory: '<built-in function dir>' occurred in generate_revisions_df (line 134) of prompteval.py
+2025-06-28 21:52:23,272 - reviewer.prompteval - DEBUG - Exiting: generate_revisions_df
+2025-06-28 21:52:23,272 - reviewer.prompteval - DEBUG - generate_revisions_df completed in 0.104443 seconds
+2025-06-28 21:52:23,272 - reviewer.prompteval - DEBUG - Entering: merge_revisions_df
+2025-06-28 21:52:23,272 - reviewer.prompteval - DEBUG - TypeError:'NoneType' object is not subscriptable occurred in merge_revisions_df (line 141) of prompteval.py
+2025-06-28 21:52:23,276 - reviewer.prompteval - DEBUG - Exiting: merge_revisions_df
+2025-06-28 21:52:23,276 - reviewer.prompteval - DEBUG - merge_revisions_df completed in 0.000790 seconds
+2025-07-03 22:56:13,856 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: preprocess_rules_section_4
+2025-07-03 22:56:13,858 - reviewer.Sectionalize - DEBUG - Entering: get_pdf_text
+2025-07-03 22:56:14,393 - reviewer.Sectionalize - DEBUG - Exiting: get_pdf_text
+2025-07-03 22:56:14,393 - reviewer.Sectionalize - DEBUG - get_pdf_text completed in 0.542454 seconds
+2025-07-03 22:56:14,404 - reviewer.PreprocessIncoseGuide - DEBUG - TypeError:unsupported operand type(s) for /: 'str' and 'str' occurred in preprocess_rules_section_4 (line 305) of preprocess.py
+2025-07-03 22:56:14,410 - reviewer.PreprocessIncoseGuide - DEBUG - Exiting: preprocess_rules_section_4
+2025-07-03 22:56:14,410 - reviewer.PreprocessIncoseGuide - DEBUG - preprocess_rules_section_4 completed in 0.555301 seconds
+2025-07-03 22:59:33,326 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: preprocess_rules_section_4
+2025-07-03 22:59:33,330 - reviewer.Sectionalize - DEBUG - Entering: get_pdf_text
+2025-07-03 22:59:33,795 - reviewer.Sectionalize - DEBUG - Exiting: get_pdf_text
+2025-07-03 22:59:33,795 - reviewer.Sectionalize - DEBUG - get_pdf_text completed in 0.466088 seconds
+2025-07-03 22:59:33,795 - reviewer.Sectionalize - DEBUG - Entering: save_text
+2025-07-03 22:59:33,800 - reviewer.Sectionalize - DEBUG - Exiting: save_text
+2025-07-03 22:59:33,800 - reviewer.Sectionalize - DEBUG - save_text completed in 0.006161 seconds
+2025-07-03 22:59:33,800 - reviewer.TextPreprocessor - DEBUG - Entering: clean_text
+2025-07-03 22:59:33,800 - reviewer.TextPreprocessor - DEBUG - Entering: replace
+2025-07-03 22:59:33,800 - reviewer.TextPreprocessor - DEBUG - Exiting: replace
+2025-07-03 22:59:33,806 - reviewer.TextPreprocessor - DEBUG - replace completed in 0.002197 seconds
+2025-07-03 22:59:33,806 - reviewer.TextPreprocessor - DEBUG - Entering: remove_multi_whitespace
+2025-07-03 22:59:33,814 - reviewer.TextPreprocessor - DEBUG - Exiting: remove_multi_whitespace
+2025-07-03 22:59:33,814 - reviewer.TextPreprocessor - DEBUG - remove_multi_whitespace completed in 0.007758 seconds
+2025-07-03 22:59:33,814 - reviewer.TextPreprocessor - DEBUG - Exiting: clean_text
+2025-07-03 22:59:33,814 - reviewer.TextPreprocessor - DEBUG - clean_text completed in 0.011164 seconds
+2025-07-03 22:59:33,814 - reviewer.Sectionalize - DEBUG - Entering: save_text
+2025-07-03 22:59:33,818 - reviewer.Sectionalize - DEBUG - Exiting: save_text
+2025-07-03 22:59:33,818 - reviewer.Sectionalize - DEBUG - save_text completed in 0.002624 seconds
+2025-07-03 22:59:33,818 - reviewer.Sectionalize - DEBUG - Entering: get_sections_df
+2025-07-03 22:59:33,821 - reviewer.Sectionalize - DEBUG - Exiting: get_sections_df
+2025-07-03 22:59:33,821 - reviewer.Sectionalize - DEBUG - get_sections_df completed in 0.003241 seconds
+2025-07-03 22:59:33,821 - reviewer.Sectionalize - DEBUG - Entering: add_section_text
+2025-07-03 22:59:33,834 - reviewer.Sectionalize - DEBUG - Exiting: add_section_text
+2025-07-03 22:59:33,834 - reviewer.Sectionalize - DEBUG - add_section_text completed in 0.013747 seconds
+2025-07-03 22:59:33,834 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: get_incose_definition
+2025-07-03 22:59:33,838 - reviewer.PreprocessIncoseGuide - DEBUG - Exiting: get_incose_definition
+2025-07-03 22:59:33,838 - reviewer.PreprocessIncoseGuide - DEBUG - get_incose_definition completed in 0.006038 seconds
+2025-07-03 22:59:33,838 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: get_incose_examples
+2025-07-03 22:59:33,838 - reviewer.PreprocessIncoseGuide - DEBUG - Exiting: get_incose_examples
+2025-07-03 22:59:33,838 - reviewer.PreprocessIncoseGuide - DEBUG - get_incose_examples completed in 0.001071 seconds
+2025-07-03 22:59:33,843 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: clean_incose_examples
+2025-07-03 22:59:33,845 - reviewer.PreprocessIncoseGuide - DEBUG - Exiting: clean_incose_examples
+2025-07-03 22:59:33,845 - reviewer.PreprocessIncoseGuide - DEBUG - clean_incose_examples completed in 0.002148 seconds
+2025-07-03 22:59:33,845 - reviewer.PreprocessIncoseGuide - DEBUG - Exiting: preprocess_rules_section_4
+2025-07-03 22:59:33,845 - reviewer.PreprocessIncoseGuide - DEBUG - preprocess_rules_section_4 completed in 0.516297 seconds
+2025-07-03 22:59:33,846 - reviewer.prompteval - DEBUG - Entering: load_prompt_base_templates
+2025-07-03 22:59:33,846 - reviewer.prompteval - DEBUG - Exiting: load_prompt_base_templates
+2025-07-03 22:59:33,846 - reviewer.prompteval - DEBUG - load_prompt_base_templates completed in 0.000422 seconds
+2025-07-03 22:59:33,846 - reviewer.ProcessIncoseTemplates - DEBUG - Entering: __call__
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - Entering: add_message_col_to_frame
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - Exiting: add_message_col_to_frame
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - add_message_col_to_frame completed in 0.000933 seconds
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - Entering: add_message_col_to_frame
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - Exiting: add_message_col_to_frame
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - add_message_col_to_frame completed in 0.000910 seconds
+2025-07-03 22:59:33,847 - reviewer.ProcessTemplates - DEBUG - Entering: replace_prompt_variable_from_frame
+2025-07-03 22:59:33,852 - reviewer.ProcessTemplates - DEBUG - Exiting: replace_prompt_variable_from_frame
+2025-07-03 22:59:33,852 - reviewer.ProcessTemplates - DEBUG - replace_prompt_variable_from_frame completed in 0.003372 seconds
+2025-07-03 22:59:33,852 - reviewer.ProcessTemplates - DEBUG - Entering: replace_prompt_variable_from_frame
+2025-07-03 22:59:33,856 - reviewer.ProcessTemplates - DEBUG - Exiting: replace_prompt_variable_from_frame
+2025-07-03 22:59:33,856 - reviewer.ProcessTemplates - DEBUG - replace_prompt_variable_from_frame completed in 0.003215 seconds
+2025-07-03 22:59:33,856 - reviewer.ProcessTemplates - DEBUG - Entering: assemble_templates_from_df
+2025-07-03 22:59:33,907 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,907 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,907 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001284 seconds
+2025-07-03 22:59:33,909 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,909 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,909 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000653 seconds
+2025-07-03 22:59:33,909 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000616 seconds
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000539 seconds
+2025-07-03 22:59:33,911 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,913 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,913 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000637 seconds
+2025-07-03 22:59:33,913 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,913 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,913 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000698 seconds
+2025-07-03 22:59:33,914 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,914 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,914 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000635 seconds
+2025-07-03 22:59:33,916 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,916 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,916 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000574 seconds
+2025-07-03 22:59:33,916 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000827 seconds
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000595 seconds
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,917 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000578 seconds
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000555 seconds
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000545 seconds
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000551 seconds
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000541 seconds
+2025-07-03 22:59:33,919 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000678 seconds
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000613 seconds
+2025-07-03 22:59:33,924 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000576 seconds
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000500 seconds
+2025-07-03 22:59:33,926 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,927 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,927 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000572 seconds
+2025-07-03 22:59:33,927 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,952 - reviewer.ProcessTemplates - DEBUG - ValueError:Single '}' encountered in format string occurred in get_template_from_messages (line 237) of preprocess.py
+2025-07-03 22:59:33,952 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,956 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.027677 seconds
+2025-07-03 22:59:33,956 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,956 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,956 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000706 seconds
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000588 seconds
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000530 seconds
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,957 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000643 seconds
+2025-07-03 22:59:33,960 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,960 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,960 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000545 seconds
+2025-07-03 22:59:33,960 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,960 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,961 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000742 seconds
+2025-07-03 22:59:33,962 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,962 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,962 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000549 seconds
+2025-07-03 22:59:33,963 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,978 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,983 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.020345 seconds
+2025-07-03 22:59:33,983 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,985 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,985 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001753 seconds
+2025-07-03 22:59:33,993 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,995 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,995 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001216 seconds
+2025-07-03 22:59:33,995 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,995 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:33,999 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.004003 seconds
+2025-07-03 22:59:33,999 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:33,999 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,001 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001253 seconds
+2025-07-03 22:59:34,001 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,001 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,003 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000874 seconds
+2025-07-03 22:59:34,003 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,003 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,005 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001086 seconds
+2025-07-03 22:59:34,005 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,005 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,007 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.001348 seconds
+2025-07-03 22:59:34,007 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,007 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,007 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000658 seconds
+2025-07-03 22:59:34,009 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,009 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,009 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000630 seconds
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000545 seconds
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,010 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000563 seconds
+2025-07-03 22:59:34,012 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,012 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,012 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000580 seconds
+2025-07-03 22:59:34,014 - reviewer.ProcessTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-03 22:59:34,014 - reviewer.ProcessTemplates - DEBUG - Exiting: get_template_from_messages
+2025-07-03 22:59:34,014 - reviewer.ProcessTemplates - DEBUG - get_template_from_messages completed in 0.000554 seconds
+2025-07-03 22:59:34,014 - reviewer.ProcessTemplates - DEBUG - Exiting: assemble_templates_from_df
+2025-07-03 22:59:34,014 - reviewer.ProcessTemplates - DEBUG - assemble_templates_from_df completed in 0.158969 seconds
+2025-07-03 22:59:34,401 - reviewer.ProcessIncoseTemplates - DEBUG - Exiting: __call__
+2025-07-03 22:59:34,401 - reviewer.ProcessIncoseTemplates - DEBUG - __call__ completed in 0.555474 seconds

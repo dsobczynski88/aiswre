@@ -7,11 +7,11 @@ from typing import Union, List
 import pandas as pd
 from tqdm import tqdm
 from langchain_core.prompts.chat import ChatPromptTemplate
+import src
 from src import pd_utils
 from src.prj_logger import get_logs
 
-BASE_LOGGERNAME = "reviewer"
-LOGGERNAME = f"{BASE_LOGGERNAME}.prompteval"
+LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
 
 @get_logs(LOGGERNAME)
@@ -49,6 +49,18 @@ def run_eval_loop(df, runner, evals_config, output_data_folder, failed_eval_col=
 
 @get_logs(LOGGERNAME)
 def run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement'):
+    """Runs a prompt chain (RunnableSequence) for each row in the input dataframe (df). The RunnableSequence is constructed using the text from the id_col 
+	as input and the failed_evals col (List[str]) where each element of the failed_evals_col refers to a specific evaluation function designed to revise
+	a given input requirement against a specific criteria. The evals_config looks up the string name each evaluation function to fetch the associated function and template.
+	Returns a dataframe containing only the prompt chain response for each row in the original input dataframe. 
+	
+    Arguments:
+		df (pd.DataFrame): The dataframe containing the input text (id_col) and the list of function names to be called for evaluating the requirement (failed_eval_col)
+		runner (PromptRunner): The PromptRunner instance used to run each Runnable Sequence (each element in df) asychronously
+		evals_config (dict): A dictionary which holds the mapping between function name, INCOSE rule, and associated prompt template. 
+		failed_eval_col (str): The column name in the dataframe containing the list of criteria which the input requirement did not satisfy.
+		id_col (str): The column name in the dataframe containing the input requirement text which is to be evaluated using the runner.
+	"""
     failed_evals = df[failed_eval_col].values
     _args=df[id_col].values
     chains=runner.assemble_eval_chain_list(failed_evals, evals_config)
@@ -68,9 +80,6 @@ def load_prompt_base_templates():
             'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
             'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
         },
-        'req-reviewer-instruct-2': {
-            'name': 'req-reviewer-instruct-2'
-        }  
     }
     return prompt_base_templates
 
@@ -97,31 +106,8 @@ def load_evaluation_config(prompt_associations, prompt_templates):
     return evaluation_config
 
 @get_logs(LOGGERNAME)
-def assemble_prompt_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:
-    '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
-    return ChatPromptTemplate.from_messages([
-            ("system",system_message),
-            ("human", user_message)
-        ])
-
-@get_logs(LOGGERNAME) 
-def assemble_prompt_templates_from_df(df, system_message_colname='system_message', user_message_colname='user_message'):
-    '''Loop over dataframe to build a unique prompt template for each row'''
-    prompt_templates_config = {}
-    for index, row in tqdm(df.iterrows()):
-        system_message=row[system_message_colname]
-        user_message=row[user_message_colname]
-        try:
-            prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
-        except ValueError:
-            system_message=system_message.replace(".} ",".]")
-            user_message=user_message.replace(".} ",".]")
-            prompt_templates_config[f"R{index+1}"] = assemble_prompt_template_from_messages(system_message, user_message)
-    return prompt_templates_config
-    
-@get_logs(LOGGERNAME)
 def generate_revisions_df(op: str, pat: str, requirement_col: str):
-    directory = Path(dir)
+    directory = Path(op)
     matching_files = list(directory.rglob(pat))
     dfs=[]
     for file in matching_files:
@@ -135,7 +121,7 @@ def generate_revisions_df(op: str, pat: str, requirement_col: str):
     return revisions_df
     
 @get_logs(LOGGERNAME)
-def merge_revisions_df(reqs_df, revisions_df):
+def merge_revisions_df(reqs_df, revisions_df, requirement_col='Requirement'):
     #merge latest revisions to original requirements dataframe
     reqs_df = pd.merge(
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
