@@ -27,15 +27,19 @@ class Sectionalize:
         get_pdf_text(self, fp: Path, start_page: int, end_page: int) -> str:
            Leverages pymupdf to convert PDFs to text for a given start/end page number.
                Returns the PDF text separated as defined by the regex
+        get_sections_df(self) -> pd.DataFrame:
+            Returns a dataframe containing the start and end indices of all matches found
+                based on regex attribute. Specifically, the 1st and 0th group matches are
+                returned and captured as columns in the returned dataframe.
+        add_section_text(self) -> pd.DataFrame:
+            Adds the text between indices specified in start and end column of the dataframe
+                returned by get_sections_df. The added text is captured in the column "extract".
         save_text(self, op: Path) -> None:
             Saves the text attribute to a txt file as per the specified output path (op).   
         print_text(self, start_index: int, end_index: int) -> None:
             Prints a slice of the text attribute (from start_index to end_index). 
                 Note the end index is included in the returned slice. 
-        get_sections_df(self):
-                         
-        add_section_text()
-               
+
     NOTES: Methods are decorated with @get_logs which logs the timing associated with method execution and 
         any incurred exceptions.   
     """
@@ -53,7 +57,7 @@ class Sectionalize:
         return self._logger
         
     @get_logs(LOGGERNAME)
-    def get_pdf_text(self, fp: Path, start_page=0, end_page=-1):
+    def get_pdf_text(self, fp: Path, start_page:int=0, end_page:int=-1):
         doc = pymupdf.open(fp)
         if (start_page == 0) and (end_page == -1):
             adj_doc = doc
@@ -73,12 +77,12 @@ class Sectionalize:
         return self.df
     
     @get_logs(LOGGERNAME)
-    def add_section_text(self, match_start_col='start', match_end_col='end'):
-        self.df['start_idx']=self.df[match_end_col].astype(int)
-        self.df['end_idx']=self.df[match_start_col].astype(int).shift(-1).fillna(0)  
+    def add_section_text(self, match_start_col:str='start', match_end_col:str='end'):
+        self.df[f'{match_start_col}_idx']=self.df[match_end_col].astype(int)
+        self.df[f'{match_end_col}_idx']=self.df[match_start_col].astype(int).shift(-1).fillna(0)  
         # update the last row such that the end_idx is the end of the corpus
-        self.df.iloc[-1, self.df.columns.get_loc('end_idx')] = len(self.text) - 1
-        self.df['extract'] = self.df[['start_idx','end_idx']].apply(lambda i: self.text[int(i[0]):int(i[1]+1)], axis=1)
+        self.df.iloc[-1, self.df.columns.get_loc(f'{match_end_col}_idx')] = len(self.text) - 1
+        self.df['extract'] = self.df[[f'{match_start_col}_idx',f'{match_end_col}_idx']].apply(lambda i: self.text[int(i[0]):int(i[1]+1)], axis=1)
         return self.df
     
     @get_logs(LOGGERNAME)
@@ -92,6 +96,7 @@ class Sectionalize:
             print(self.text[start_index:(end_index+1)])
         else:
             print(self.text[start_index:])
+
 
 class TextPreprocessor:
     """
@@ -112,13 +117,11 @@ class TextPreprocessor:
         replace(_str: str, replace_tokens: List[str], replace_with: str) -> str:
             Replaces specific tokens (replace_tokens) in a given string with a fixed string (replace_with).
                 Returns the preprocessed string.
-        remove_multi_whitespace(_str: str):
+        remove_multi_whitespace(_str: str) -> str
             Replaces combinations of multiple whitespace characters (e.g., newline tab, space) with a single
                 space. Returns the preprocessed string.
-
         make_lower(_str: str) -> str:
             Converts all text for a given input string to lowercase. Returns the preprocessed string.
-
         remove_stopwords(_str: str, STOP_WORDS: List[str]) -> str:
             Replaces specific tokens (STOP_WORDS) in a given string with a single space.
                 Assumes input string tokens are denoted by a single space. Returns the preprocessed string.
@@ -163,7 +166,7 @@ class TextPreprocessor:
     @staticmethod
     @get_logs(LOGGERNAME)
     def remove_multi_whitespace(_str: str) -> str:
-        """Replace multiple spaces with a single space
+        """Replace multiple space/tab/newline characters with a single space
         Args:
             _str (str): the corpus (str) on which to apply the function
         """
@@ -190,6 +193,7 @@ class TextPreprocessor:
             lst_str = [word for word in lst_str if word not in STOP_WORDS]
         return ' '.join(lst_str)
     
+
 class ProcessTemplates:
     """
     A class which generates prompt template strings from input system and user messages. These
