@@ -32,7 +32,7 @@ def get_logs(loggername):
                 logger.debug(ce.error_message)
                 output = None
             finally:
-                logger.debug(f"Exiting: {func.__name__}")
+                #logger.debug(f"Exiting: {func.__name__}")
                 end_time = time.perf_counter()
                 elapsed_time = end_time - start_time
                 logger.debug(f"{func.__name__} completed in {elapsed_time:.6f} seconds")

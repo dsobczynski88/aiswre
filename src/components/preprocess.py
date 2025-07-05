@@ -3,15 +3,27 @@ import logging
 from typing import List, Callable, Union
 from functools import partial, reduce
 from pathlib import Path
+import json
 import numpy as np
 import pandas as pd
 import pymupdf
 from tqdm import tqdm
 from langchain_core.prompts.chat import ChatPromptTemplate
 import src
+import src.components.prompteval as pe
 from src.prj_logger import get_logs
 from src import pd_utils
+from pprint import pformat
 
+
+BASE_TEMPLATES = {
+        'req-reviewer-instruct-1': {
+            'name': 'req-reviewer-instruct-1',
+            'description': 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.',
+            'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
+            'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
+        },
+    }
 
 class Sectionalize:
     """
@@ -194,7 +206,7 @@ class TextPreprocessor:
         return ' '.join(lst_str)
     
 
-class ProcessTemplates:
+class BuildTemplates:
     """
     A class which generates prompt template strings from input system and user messages. These
     messages contain variables denoted with curly braces. This class is specifically designed
@@ -210,7 +222,7 @@ class ProcessTemplates:
     Methods:
     """
 
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.ProcessTemplates"
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildTemplates"
 
     def __init__(self, df, base_messages):
         self.df = df
@@ -231,7 +243,7 @@ class ProcessTemplates:
         for index, row in tqdm(self.df.iterrows()):
             system_message=row[system_message_colname]
             user_message=row[user_message_colname]
-            self.templates[f"{template_name_prefix}{index+1}"] = ProcessTemplates.get_template_from_messages(system_message, user_message)
+            self.templates[f"{template_name_prefix}{index+1}"] = BuildTemplates.get_template_from_messages(system_message, user_message)
         return self.templates
 
     @staticmethod
@@ -244,13 +256,21 @@ class ProcessTemplates:
             ])
 
     
-class ProcessIncoseTemplates(ProcessTemplates):
+class BuildIncoseTemplates(BuildTemplates):
 
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.ProcessIncoseTemplates"
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
+
+    EVAL_FUNC_MAPPING = [
+        ('eval_is_in_passive_voice', pe.eval_is_in_passive_voice,'R2'),
+        ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
+        ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
+        ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
+    ]
 
     def __init__(self, df, base_messages, output_data_folder_path):
         super().__init__(df, base_messages)
         self.output_data_folder_path = output_data_folder_path
+        self.evals_config = {}
     
     @get_logs(LOGGERNAME)
     def __call__(self):
@@ -266,20 +286,33 @@ class ProcessIncoseTemplates(ProcessTemplates):
             user_message_colname='user_message',
             template_name_prefix='R'
         )
+        self.load_evals_config()
+        BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
         incose_guide_sections_df = self.df
         pd_utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
         return self
+    
+    @get_logs(src.BASE_LOGGERNAME)
+    def load_evals_config(self):
+        '''load evaluations configuration'''
+        for _eval in BuildIncoseTemplates.EVAL_FUNC_MAPPING:
+            self.evals_config[_eval[0]] = {}
+            self.evals_config[_eval[0]]["func"] = _eval[1]
+            self.evals_config[_eval[0]]["template"] = self.templates[_eval[2]]
+        return self.evals_config
+
+    @staticmethod
+    @get_logs(src.BASE_LOGGERNAME)
+    def write_text(fp: Path, mode: str, data: dict):
+        with open(fp, mode) as f:
+            f.write(data)
+
 
 class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.PreprocessIncoseGuide"
-    INCOSE_SECTIONS_REGEX_PAT = r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
-    INCOSE_GUIDE_FILEPATH = Path('./src/data/incose_gtwr.pdf')
-    OUTPUT_DATA_FOLDER = Path('./src/data')
-    REPLACE_TOKENS = ['INCOSE-TP-2010-006-04| VERS/REV:4  |  1 July 2023', '{', '}']
-    REPLACE_WITH = ' '
 
-    def __init__(self, regex=INCOSE_SECTIONS_REGEX_PAT):
+    def __init__(self, regex):
         Sectionalize.__init__(self, regex)
         TextPreprocessor.__init__(self)
 
@@ -304,7 +337,7 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         return self.df
     
     @get_logs(LOGGERNAME)
-    def preprocess_rules_section_4(self, inpath=INCOSE_GUIDE_FILEPATH, outpath=OUTPUT_DATA_FOLDER, start_page=65, end_page=115, replace_tokens=REPLACE_TOKENS, replace_with=REPLACE_WITH):
+    def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, replace_with):
         self.get_pdf_text(inpath, start_page, end_page)
         self.save_text(outpath / "extract.txt")
         self._pipeline = [
