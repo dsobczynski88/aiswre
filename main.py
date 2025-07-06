@@ -57,7 +57,7 @@ def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals'
                 revised_df = incose_reviewer(evals_lists, args_lists)
                 revised_df['revision'] = iter + 1
                 revised_df = revised_df[[incose_reviewer.id_col,'revision']]
-                utils.to_excel(df, output_data_folder, str(iter), 'revised_df_iter')
+                utils.to_excel(revised_df, output_data_folder, str(iter), 'revised_df_iter')
             proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
 
 
