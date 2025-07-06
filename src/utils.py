@@ -133,14 +133,14 @@ def generate_revisions_df(op: str, pat: str, requirement_col: str):
     # concat dfs
     revisions_df = pd.concat(dfs, ignore_index=True, axis=0)[[f'Revised_{requirement_col}',f'{requirement_col}_#','revision']]
     revisions_df = revisions_df[revisions_df[f'Revised_{requirement_col}'].str.strip() != '']
-    to_excel(revisions_df, dir, False, 'revisions_df')
+    to_excel(revisions_df, op, False, 'revisions_df')
     return revisions_df
     
 @get_logs(src.BASE_LOGGERNAME)
-def merge_revisions_df(reqs_df, revisions_df, requirement_col='Requirement'):
+def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement'):
     #merge latest revisions to original requirements dataframe
     reqs_df = pd.merge(
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
     )
-    to_excel(reqs_df, dir, False, 'reqs_df_with_revisions')
+    to_excel(reqs_df, op, False, 'reqs_df_with_revisions')
     return reqs_df

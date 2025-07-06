@@ -142,5 +142,7 @@ if __name__ == "__main__":
 
     # merge revisions df to original requirements
     reqs_df = utils.merge_revisions_df(
-        reqs_df, revisions_df
+        op=OUTPUT_DATA_FOLDER,
+        reqs_df=reqs_df, 
+        revisions_df=revisions_df
     )
