@@ -1,16 +1,24 @@
 import pandas as pd
+from pathlib import Path
+from datetime import datetime
 import flatdict
 import ast
-        
-def flatten(df):
-    df = flatten_df_series_dict(df, get_types_dict(df))
-    dfs_to_add = []
-    for col in df.columns:
-        if '_flat' in col:
-            dfs_to_add.append(pd.DataFrame(list(df[col].values)))
-    df = pd.concat([df] + dfs_to_add, axis=1)
-    return df
+import src
+from src.prj_logger import get_logs
 
+
+def get_current_date_time():
+    # Get the current date and time
+    now = datetime.now()
+    # Extract date, month, and time
+    current_date = now.date()  # YYYY-MM-DD format
+    current_month = now.month  # Numeric month (1-12)
+    current_time = now.time()  # HH:MM:SS.microseconds format
+    formatted_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+    return formatted_time  
+
+
+@get_logs(src.BASE_LOGGERNAME)
 def get_types_dict(df: pd.DataFrame) -> dict:
     """This function takes in a dataframe and gets the data type name of each column.
     For example, if the type of a specific column is a list, then the values of that 
@@ -36,6 +44,7 @@ def get_types_dict(df: pd.DataFrame) -> dict:
             continue
     return types_dict
 
+@get_logs(src.BASE_LOGGERNAME)
 def flatten_df_series_dict(df: pd.DataFrame, types_dict:dict) -> pd.DataFrame:
     """This function takes in a dataframe and a dictionary of type names. For 
     those columns of the dataframe of type 'dict', the Flatdict class is called
@@ -51,6 +60,17 @@ def flatten_df_series_dict(df: pd.DataFrame, types_dict:dict) -> pd.DataFrame:
             df[f'{column}_flat'] = df[column].apply(lambda s: flatdict.FlatDict(s, delimiter='.'))   
     return df
 
+@get_logs(src.BASE_LOGGERNAME)
+def flatten(df):
+    df = flatten_df_series_dict(df, get_types_dict(df))
+    dfs_to_add = []
+    for col in df.columns:
+        if '_flat' in col:
+            dfs_to_add.append(pd.DataFrame(list(df[col].values)))
+    df = pd.concat([df] + dfs_to_add, axis=1)
+    return df
+
+@get_logs(src.BASE_LOGGERNAME)
 def replace_null(df:pd.DataFrame, colname:str, replace_with:str) -> pd.DataFrame:
     """
     This function will take in a dataframe and a specific column name and 
@@ -64,41 +84,8 @@ def replace_null(df:pd.DataFrame, colname:str, replace_with:str) -> pd.DataFrame
     """
     df.fillna({colname: replace_with}, inplace=True)
     return df
-    
-    
-def mk_df_from_dict(_dict: dict) -> pd.DataFrame:
-    """
-    This function takes in a dictionary and converts it to a dataframe where each 
-    unique key in the dictionary is a column of the dataframe
-    
-    Args:
-        _dict (dict): a dictionary to be converted to a dataframe.
-    """
-    item_list = []
-    item_fields = set()
-    for _, item in enumerate(_dict):
-        item_fields.update(list(item.keys()))
-        item_list.append(item)
-    return pd.DataFrame(data=item_list, columns=list(item_fields))
 
-def mk_dict_from_df(df:pd.DataFrame, cols_to_keep:list) -> dict:
-    """Takes in a pandas dataframe and a list of columns and returns
-    a dictionary where the first column in the list is the keys and 
-    the second column the values
-
-    Args:
-        df (pd.DataFrame): Pandas dataframe
-        cols_to_keep (list): Two columns from the dataframe desired 
-            to use as keys and values of the output dict
-    """
-    return dict(df[cols_to_keep].drop_duplicates(subset=cols_to_keep).values)
-
-def to_excel(df, output_folder, _id, df_name):
-    if _id:
-        df.to_excel(f'{output_folder}/{df_name}_{_id}.xlsx')
-    else:
-        df.to_excel(f'{output_folder}/{df_name}.xlsx')
-
+@get_logs(src.BASE_LOGGERNAME) 
 def recast_str(_str:str, na_value=[]):
     """This function takes in a str and default value for errors or NaNs. The built-in
     python function eval() is applied on the input string in effort to cast the string
@@ -125,4 +112,35 @@ def recast_str(_str:str, na_value=[]):
         except NameError:
             return na_value
         else:
-            return casted   
+            return casted
+
+@get_logs(src.BASE_LOGGERNAME)
+def to_excel(df, output_folder, _id, df_name):
+    if _id:
+        df.to_excel(f'{output_folder}/{df_name}_{_id}.xlsx')
+    else:
+        df.to_excel(f'{output_folder}/{df_name}.xlsx')
+
+@get_logs(src.BASE_LOGGERNAME)
+def generate_revisions_df(op: str, pat: str, requirement_col: str):
+    directory = Path(op)
+    matching_files = list(directory.rglob(pat))
+    dfs=[]
+    for file in matching_files:
+        temp_df = pd.read_excel(file, index_col=[0])
+        temp_df = temp_df.reset_index().rename(columns={requirement_col:f'Revised_{requirement_col}', 'index':f'{requirement_col}_#'})
+        dfs.append(temp_df)
+    # concat dfs
+    revisions_df = pd.concat(dfs, ignore_index=True, axis=0)[[f'Revised_{requirement_col}',f'{requirement_col}_#','revision']]
+    revisions_df = revisions_df[revisions_df[f'Revised_{requirement_col}'].str.strip() != '']
+    to_excel(revisions_df, dir, False, 'revisions_df')
+    return revisions_df
+    
+@get_logs(src.BASE_LOGGERNAME)
+def merge_revisions_df(reqs_df, revisions_df, requirement_col='Requirement'):
+    #merge latest revisions to original requirements dataframe
+    reqs_df = pd.merge(
+        left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
+    )
+    to_excel(reqs_df, dir, False, 'reqs_df_with_revisions')
+    return reqs_df

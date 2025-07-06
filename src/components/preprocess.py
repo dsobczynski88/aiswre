@@ -12,7 +12,7 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 import src
 import src.components.prompteval as pe
 from src.prj_logger import get_logs
-from src import pd_utils
+from src import utils
 from pprint import pformat
 
 
@@ -163,7 +163,7 @@ class TextPreprocessor:
     @get_logs(LOGGERNAME)
     def clean_frame(self, df: pd.DataFrame, apply_to_cols: List[str]) -> pd.DataFrame:
         for acol in apply_to_cols:
-            df = pd_utils.replace_null(df, acol, ' ')
+            df = utils.replace_null(df, acol, ' ')
             df[acol] = df[acol].astype(str)
             df[acol] = df[acol].apply(lambda s: self.clean_text(self._pipeline, s))
         return df
@@ -271,10 +271,6 @@ class BuildIncoseTemplates(BuildTemplates):
         super().__init__(df, base_messages)
         self.output_data_folder_path = output_data_folder_path
         self.evals_config = {}
-    
-    @get_logs(LOGGERNAME)
-    def __call__(self):
-        # add system and user messages as columns to each row of dataframe
         self.add_message_col_to_frame("system")
         self.add_message_col_to_frame("user")
         # replace relevant template variables with INCOSE data (e.g., definition, examples)
@@ -289,8 +285,8 @@ class BuildIncoseTemplates(BuildTemplates):
         self.load_evals_config()
         BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
         incose_guide_sections_df = self.df
-        pd_utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
-        return self
+        utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
+        
     
     @get_logs(src.BASE_LOGGERNAME)
     def load_evals_config(self):

@@ -8,7 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 from langchain_core.prompts.chat import ChatPromptTemplate
 import src
-from src import pd_utils
+from src import utils
 from src.prj_logger import get_logs
 
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
@@ -25,24 +25,6 @@ def convert_bool_to_ohe(bool_result: bool) -> int:
         return 1
     else:
         return 0
-
-@get_logs(LOGGERNAME)
-def call_evals(df: pd.DataFrame, eval_config: dict, col: str) -> None:
-    # run evals for each row of the dataframe
-    for _index, _row in df.iterrows():
-        for key, value in eval_config.items():  # fix this line
-            eval_func_to_call = eval_config[key]["func"] 
-            eval_result = eval_func_to_call(_row[col])
-            df.loc[_index, key] = convert_bool_to_ohe(
-                eval_result
-            )
-    return df
-
-@get_logs(LOGGERNAME)
-def get_failed_evals(df: pd.DataFrame):
-    eval_cols = [c for c in df.columns if c.startswith("eval")]
-    df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
-    return df
 
 @get_logs(LOGGERNAME)    
 def eval_is_in_passive_voice(text: str) -> bool:

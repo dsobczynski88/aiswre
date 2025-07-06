@@ -1,5 +1,7 @@
+import argparse
 import re
 from pathlib import Path
+import logging
 import pandas as pd
 from functools import partial
 from dotenv import dotenv_values
@@ -19,125 +21,126 @@ from langchain_core.runnables import (
     RunnablePassthrough,
     RunnableSequence
 )
-from aiswre.prj_logger import ProjectLogger
-from aiswre.utils import pd_utils, prompt_utils
-from aiswre.preprocess.sectionalize import Sectionalize
-from aiswre.promptengg import prompteval as pe
-from aiswre.promptengg.promptrunner import ParallelPromptRunner
+import src
+from src.prj_logger import ProjectLogger, get_logs
+from src import utils
+import src.components.preprocess as pp
+from src.components.preprocess import PreprocessIncoseGuide, BuildIncoseTemplates
+from src.components.promptrunner import IncoseRequirementReviewer
+from src.components import prompteval as pe
 
-# load environment variables
-config = dotenv_values(".env")
 
-# define output data folder
-output_data_folder = './aiswre/data'
-
-# load logger
-proj_log = ProjectLogger('reviewer',f"{output_data_folder}/reviewer.log").config()
-
-# data ingestion (parse incose guide)
-incose_guide_fp = './aiswre/data/incose_gtwr.pdf'
-sectionalizer = Sectionalize(regex=r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d')
-text = sectionalizer.get_pdf_text(fp=Path(incose_guide_fp), start_page=65, end_page=115)
-sectionalizer.save_text(text=text, op=Path(f"{output_data_folder}/extract.txt"))
-incose_guide_sections_df = sectionalizer.get_sections_df(text)
-incose_guide_sections_df = sectionalizer.add_section_text(incose_guide_sections_df, text)
-incose_guide_sections_df =sectionalizer.get_incose_definition(incose_guide_sections_df)
-incose_guide_sections_df =sectionalizer.get_incose_elaboration(incose_guide_sections_df)
-incose_guide_sections_df =sectionalizer.get_incose_examples(incose_guide_sections_df)
-pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
-
-# add templates for each rule to incose_guide_sections_df using a specified base template
-prompt_base_templates = pe.load_prompt_base_templates()
-# select base template
-base_template = prompt_base_templates['req-reviewer-instruct-1']
-base_template_system_message = base_template['system']
-base_template_user_message = base_template['user']
-# assign base template to incose guide
-incose_guide_sections_df['system_base_message'] = base_template_system_message
-incose_guide_sections_df['user_base_message'] = base_template_user_message
-# replace relevant template variables with INCOSE data (e.g., definition, examples)
-incose_guide_sections_df['system_message'] = incose_guide_sections_df['system_base_message']
-incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_base_message','definition']].apply(lambda l: l[0].replace('{definition}',l[1]), axis=1)
-incose_guide_sections_df['user_message'] = incose_guide_sections_df[['user_message','examples']].apply(lambda l: l[0].replace('{examples}',l[1]), axis=1)
-pd_utils.to_excel(incose_guide_sections_df, output_data_folder, False, 'incose_guide_sections_df')
-
-# build prompt templates based on incose rules
-prompt_templates= prompt_utils.assemble_prompt_templates_from_df(incose_guide_sections_df, system_message_colname='system_message', user_message_colname='user_message')
-
-# load requirements dataset
-reqs_df = pd.read_excel('./aiswre/data/software_requirements.xlsx').head(3)
-
-# load prompt associations which associates evaluation funcs with specific prompt templates (incose rules)
-prompt_associations = pe.load_prompt_associations()
-# has the associations into a config dictionary where each key value is a dictionary containing the eval func and associated template 
-evals_config = pe.load_evaluation_config(prompt_associations, prompt_templates) # might not need this --- could combine with above "prompt associations" variable
-
-print(evals_config)
-
-# instantiate openai client
-secret_key = config['OPENAI_API_KEY']
-
-# define pydantic model
-class Requirement:
-    revision: str = Field("A revised software requirement")
-
-# instantiate prompt runner
-ppr = ParallelPromptRunner(
-    llm=ChatOpenAI(api_key=secret_key, model='gpt-4o-mini'),
-    use_structured_llm=False,
-    pydantic_model=None
-)
-
-def run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement'):
-    failed_evals = df[failed_eval_col].values
-    _args=df[id_col].values
-    chains=[runner.assemble_eval_chain_list(fe, evals_config, runner.llm) for fe in failed_evals]
-    print('CHAINS....')
-    print(chains)
-    async_tasks = runner.run_multiple_chains(chains, _args)
-    results = asyncio.run(async_tasks)
-    results_df = pd.DataFrame(results)
-    results_df = results_df.rename(columns={0:id_col})
-    return results_df
-
-def run_eval_loop(df, prompt_associations, runner, evals_config, failed_eval_col='failed_evals', id_col='Requirement', max_iter=3):
+def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals', max_iter=3):
     # run evaluation algorithm
     for iter in range(max_iter):
-        print(iter)
+        proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
+        if iter > 0:
+            df = pd.read_excel(f"{output_data_folder}/revised_df_iter_{iter-1}.xlsx")
+        df = df[[runner.id_col]]
+        proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
         # run evals on df
-        df = pe.call_evals(df, evals_config, 'Requirement')
-        df = pe.get_failed_evals(df)
-        # for reqs where all evals passed, pop off these rows into revised_df
-        if df is not None:
-            popped_rows = df.drop(df[df[failed_eval_col].str.len() == 0].index)
-            if len(popped_rows):
-                try:
-                    assert revised_df
-                except NameError:
-                    revised_df = popped_rows
-                else:
-                    revised_df = pd.concat([revised_df, popped_rows], axis=0, ignore_index=False)
-                    pd_utils.to_excel(revised_df, output_data_folder, iter, 'revised_df')
-            # update df
-            df = df.loc[df[failed_eval_col].str.len() > 0]
-            pd_utils.to_excel(df, output_data_folder, iter, f'df_pre_prompt_{iter}')
-            if not len(df):
-                break
-            else:
+        df = runner.call_evals(df, runner.id_col)
+        df = runner.get_failed_evals(df)
+        proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
+        if (df is not None):
+            pass_cond = df[failed_eval_col].str.len() == 0
+            pass_rows = df[pass_cond]
+            if len(pass_rows) > 0:
+                proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
+                df = df[~pass_rows]
+            if len(df) > 0:
+                proj_logger.info(f'{len(df)} Requirements still require evaluation')
                 # run prompts for requirements containing failed evals
-                df = run_prompts_for_failed_evals(df, runner, evals_config, failed_eval_col, id_col)
-                pd_utils.to_excel(df, output_data_folder, iter, 'df_post_prompt')
-        else:
-            pd_utils.to_excel(df, output_data_folder, iter, 'df_pre_prompt')
-    else:
-        #log that not all requirements fully passed
-        pass
+                evals_lists = list(df[failed_eval_col].values)
+                print(f"Eval lists: {evals_lists}")
+                args_lists = list(df[incose_reviewer.id_col].values)
+                revised_df = incose_reviewer(evals_lists, args_lists)
+                revised_df['revision'] = iter + 1
+                revised_df = revised_df[[incose_reviewer.id_col,'revision']]
+                utils.to_excel(df, output_data_folder, str(iter), 'revised_df_iter')
+            proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
 
-print(reqs_df.head(3))
 
-run_eval_loop(
-    df=reqs_df,
-    prompt_associations=prompt_associations,
-    runner=ppr,
-    evals_config=evals_config,
-)
+if __name__ == "__main__":
+
+    # load constants and environment variables
+    DOT_ENV = dotenv_values(".env")
+    # instantiate openai client
+    OPENAI_API_KEY = DOT_ENV['OPENAI_API_KEY']
+    # define selected base template name used to build INCOSE rules prompts
+    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-1'
+    # define folder to store run outputs
+    RUN_NAME = f"run-{utils.get_current_date_time()}"
+    # define output data folder
+    OUTPUT_DATA_FOLDER = f'./src/data/{RUN_NAME}'
+    # make run folder 
+    Path(OUTPUT_DATA_FOLDER).mkdir(parents=True, exist_ok=True)    
+    # define incose guide filepath
+    INCOSE_GUIDE_FILEPATH = './src/data/incose_gtwr.pdf'
+    # define regex pattern to split out rules in Section 4 of Guide
+    INCOSE_SECTIONS_REGEX_PAT = r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
+    # define preprocessing settings
+    REPLACE_TOKENS = ['INCOSE-TP-2010-006-04| VERS/REV:4  |  1 July 2023', "{", "}"]
+    REPLACE_WITH = ' ' 
+    # define LLM model for evaluating requirements
+    LLM_MODEL_NAME = 'gpt-4o-mini'
+    # define the column name in the dataset containing the requirements
+    DATASET_REQ_COLNAME = 'Requirement'
+    # load logger
+    ProjectLogger(src.BASE_LOGGERNAME,f"{OUTPUT_DATA_FOLDER}/{src.BASE_LOGGERNAME}.log").config()
+    proj_logger = logging.getLogger(src.BASE_LOGGERNAME)
+    # load dataset
+    reqs_df = pd.read_excel('./src/data/software_requirements_1.xlsx', index_col=[0])
+    reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})
+    
+    # parse INCOSE guide using the PreprocessIncoseGuide class
+    incose_preprocessor = PreprocessIncoseGuide(INCOSE_SECTIONS_REGEX_PAT).preprocess_rules_section_4(
+        inpath=Path(INCOSE_GUIDE_FILEPATH),
+        outpath=Path(OUTPUT_DATA_FOLDER),
+        start_page=65,
+        end_page=115,
+        replace_tokens=REPLACE_TOKENS,
+        replace_with=REPLACE_WITH
+    )
+    incose_guide_sections_df = incose_preprocessor.df
+
+    # load selected base template messages
+    base_template_messages = pp.BASE_TEMPLATES[SELECTED_BASE_TEMPLATE_NAME]
+
+    # build INCOSE templates from base messages via class BuildIncoseTemplates
+    incose_template_builder = BuildIncoseTemplates(
+        df=incose_guide_sections_df,
+        base_messages=base_template_messages,
+        output_data_folder_path=OUTPUT_DATA_FOLDER
+    )
+
+    # instantiate incose requirement reviewer
+    incose_reviewer = IncoseRequirementReviewer(
+        llm=ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL_NAME),
+        use_structured_llm=False,
+        pydantic_model=None,
+        templates=incose_template_builder.templates,
+        evals_config=incose_template_builder.evals_config,
+        id_col=DATASET_REQ_COLNAME
+    )
+
+    # run evaluation loop
+    run_eval_loop(
+        df=reqs_df,
+        runner=incose_reviewer,
+        output_data_folder=OUTPUT_DATA_FOLDER,
+        failed_eval_col='failed_evals',
+        max_iter=3
+    )
+
+    # generate revisions df
+    revisions_df = utils.generate_revisions_df(
+        op=OUTPUT_DATA_FOLDER,
+        pat="revised_df*",
+        requirement_col='Requirement'
+    )
+
+    # merge revisions df to original requirements
+    reqs_df = utils.merge_revisions_df(
+        reqs_df, revisions_df
+    )

@@ -13,6 +13,8 @@ from langchain_core.runnables import (
 )
 import src
 from src.prj_logger import get_logs
+import src.components.prompteval as pe
+
 
 class PromptRunner:
     """
@@ -78,8 +80,7 @@ class PromptRunner:
 
 
 
-
-class IncosePromptRunner(PromptRunner):
+class IncoseRequirementReviewer(PromptRunner):
     """
 	A class specifically to run custom prompts generated using INCOSE guide rules
 	
@@ -105,31 +106,62 @@ class IncosePromptRunner(PromptRunner):
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncosePromptRunner"
     
-    def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_lists, evals_config):
-        super().__init__(use_structured_llm, llm, pydantic_model, templates)
+    def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_config, id_col='Requirement'):
+        super().__init__(use_structured_llm, llm, pydantic_model)
         self.templates = templates
-        self.evals_lists = evals_lists
         self.evals_config = evals_config
-        self.chains_lists = []
+        self.evals_chains = []
+        self.id_col = id_col
 
-    def __call__(self, args_lists):
-        self.assemble_eval_chain_list()
-        results = self.run_multiple_chains(self.chains_lists, args_lists)
-        return results
+    def __call__(self, evals_lists, args_lists):
+        self.assemble_eval_chain_list(evals_lists)
+        results = asyncio.run(self.run_multiple_chains(self.evals_chains, args_lists))
+        results_df = self.cast_results_to_frame(results)
+        return results_df
     
     @get_logs(LOGGERNAME)
-    def assemble_eval_chain_list(self):
-        for eval_list in self.evals_lists:
+    def assemble_eval_chain_list(self, evals_lists):
+        for eval_list in evals_lists:
+            print(f"Eval list: {eval_list}")
             row_chain = []
             for _eval in eval_list:
                 template = self.evals_config[_eval]["template"]
                 row_chain.append(self.assemble_chain_from_template(template))
             composed_chain = RunnableSequence(*row_chain)
-            self.chains_lists.append(composed_chain)
-        return self.chains_lists
+            self.evals_chains.append(composed_chain)
+        return self.evals_chains
 
     @get_logs(LOGGERNAME)
     def assemble_chain_from_template(self, template):
         chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content) | (lambda x: ''.join(re.findall('Final Revision:(.*)',x)))
         return chain
     
+    @get_logs(LOGGERNAME)
+    def cast_results_to_frame(self, results):
+        """Casts the results returned by the LLM (e.g., via self.run_multiple_chains) to a dataframe
+        
+        Arguments:
+            results (List[str]): Results returned by the LLM 
+            id_col (str): The column name in the dataframe containing the input requirement text which is to be evaluated using the runner.
+        """
+        results_df = pd.DataFrame(results)
+        results_df = results_df.rename(columns={0:self.id_col})
+        return results_df
+    
+    @get_logs(LOGGERNAME)
+    def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
+        # run evals for each row of the dataframe
+        for _index, _row in df.iterrows():
+            for key, value in self.evals_config.items():  # fix this line
+                eval_func_to_call = self.evals_config[key]["func"] 
+                eval_result = eval_func_to_call(_row[col])
+                df.loc[_index, key] = pe.convert_bool_to_ohe(
+                    eval_result
+                )
+        return df
+
+    @get_logs(LOGGERNAME)
+    def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
+        eval_cols = [c for c in df.columns if c.startswith("eval")]
+        df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
+        return df
