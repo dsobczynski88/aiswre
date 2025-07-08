@@ -105,6 +105,7 @@ class IncoseRequirementReviewer(PromptRunner):
 	"""
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncosePromptRunner"
+    DEFAULT_CAPTURE_FUNC = lambda x: ''.join(re.findall('Final Revision:(.*)',x))
     
     def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_config, id_col='Requirement'):
         super().__init__(use_structured_llm, llm, pydantic_model)
@@ -113,27 +114,30 @@ class IncoseRequirementReviewer(PromptRunner):
         self.evals_chains = []
         self.id_col = id_col
 
-    def __call__(self, evals_lists, args_lists):
-        self.assemble_eval_chain_list(evals_lists)
+    def __call__(self, evals_lists, args_lists, capture_func):
+        self.assemble_eval_chain_list(evals_lists, capture_func)
         results = asyncio.run(self.run_multiple_chains(self.evals_chains, args_lists))
         results_df = self.cast_results_to_frame(results)
         return results_df
     
     @get_logs(LOGGERNAME)
-    def assemble_eval_chain_list(self, evals_lists):
+    def assemble_eval_chain_list(self, evals_lists, capture_func):
         for eval_list in evals_lists:
             print(f"Eval list: {eval_list}")
             row_chain = []
             for _eval in eval_list:
                 template = self.evals_config[_eval]["template"]
-                row_chain.append(self.assemble_chain_from_template(template))
+                row_chain.append(self.assemble_chain_from_template(template, capture_func))
             composed_chain = RunnableSequence(*row_chain)
             self.evals_chains.append(composed_chain)
         return self.evals_chains
 
     @get_logs(LOGGERNAME)
-    def assemble_chain_from_template(self, template):
-        chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content) | (lambda x: ''.join(re.findall('Final Revision:(.*)',x)))
+    def assemble_chain_from_template(self, template, capture_func):
+        if capture_func is not None:
+            chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content) | (capture_func)
+        else:
+            chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content)
         return chain
     
     @get_logs(LOGGERNAME)

@@ -23,6 +23,13 @@ BASE_TEMPLATES = {
             'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
             'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
         },
+        'req-reviewer-instruct-2': {
+            'name': 'req-reviewer-instruct-2',
+            'description': 'Similar to req-reviewer-instruct-1; however, additional specification is provided to ensure the requirement does not become exceedingly lengthy.',
+            'system': 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
+            'user': 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}'
+        },
+
     }
 
 class Sectionalize:
@@ -328,7 +335,12 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         return self.df
     
     @get_logs(LOGGERNAME)
-    def clean_incose_examples(self, pat='(Exceptions and relationships:.*)$', flags=re.DOTALL):
+    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]'):
+        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s)))
+        return self.df
+    
+    @get_logs(LOGGERNAME)
+    def clean_incose_examples(self, pat=r'(Exceptions and relationships:.*)$', flags=re.DOTALL):
         self.df['examples'] = self.df['examples'].apply(lambda s: ''.join(re.sub(pat, '', s)))
         return self.df
     
@@ -346,5 +358,6 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.add_section_text()
         self.get_incose_definition()
         self.get_incose_examples()
+        self.remove_bracketed_text()
         self.clean_incose_examples()
         return self

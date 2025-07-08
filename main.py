@@ -30,12 +30,18 @@ from src.components.promptrunner import IncoseRequirementReviewer
 from src.components import prompteval as pe
 
 
-def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals', max_iter=3):
+def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
+    #
+    #
     # run evaluation algorithm
     for iter in range(max_iter):
         proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
         if iter > 0:
             df = pd.read_excel(f"{output_data_folder}/revised_df_iter_{iter-1}.xlsx")
+            #
+            # need to fix this function to adjust for case where previous iteration results are unsuccessful post prompt
+            #
+            df = df.dropna(subset=[runner.id_col])
         df = df[[runner.id_col]]
         proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
         # run evals on df
@@ -43,18 +49,19 @@ def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals'
         df = runner.get_failed_evals(df)
         proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
         if (df is not None):
+            df = df.fillna('')
             pass_cond = df[failed_eval_col].str.len() == 0
             pass_rows = df[pass_cond]
             if len(pass_rows) > 0:
                 proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
-                df = df[~pass_rows]
+                df = df[~pass_cond]
             if len(df) > 0:
                 proj_logger.info(f'{len(df)} Requirements still require evaluation')
                 # run prompts for requirements containing failed evals
                 evals_lists = list(df[failed_eval_col].values)
                 print(f"Eval lists: {evals_lists}")
                 args_lists = list(df[incose_reviewer.id_col].values)
-                revised_df = incose_reviewer(evals_lists, args_lists)
+                revised_df = incose_reviewer(evals_lists, args_lists, capture_func)
                 revised_df['revision'] = iter + 1
                 revised_df = revised_df[[incose_reviewer.id_col,'revision']]
                 utils.to_excel(revised_df, output_data_folder, str(iter), 'revised_df_iter')
@@ -68,7 +75,7 @@ if __name__ == "__main__":
     # instantiate openai client
     OPENAI_API_KEY = DOT_ENV['OPENAI_API_KEY']
     # define selected base template name used to build INCOSE rules prompts
-    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-1'
+    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-2'
     # define folder to store run outputs
     RUN_NAME = f"run-{utils.get_current_date_time()}"
     # define output data folder
@@ -86,6 +93,8 @@ if __name__ == "__main__":
     LLM_MODEL_NAME = 'gpt-4o-mini'
     # define the column name in the dataset containing the requirements
     DATASET_REQ_COLNAME = 'Requirement'
+    # maximum number of iterations
+    MAX_NUM_ITER = 1
     # load logger
     ProjectLogger(src.BASE_LOGGERNAME,f"{OUTPUT_DATA_FOLDER}/{src.BASE_LOGGERNAME}.log").config()
     proj_logger = logging.getLogger(src.BASE_LOGGERNAME)
@@ -130,7 +139,7 @@ if __name__ == "__main__":
         runner=incose_reviewer,
         output_data_folder=OUTPUT_DATA_FOLDER,
         failed_eval_col='failed_evals',
-        max_iter=3
+        max_iter=MAX_NUM_ITER
     )
 
     # generate revisions df
