@@ -17,6 +17,19 @@ def get_current_date_time():
     formatted_time = now.strftime("%Y-%m-%d-%H-%M-%S")
     return formatted_time  
 
+@get_logs(src.BASE_LOGGERNAME)
+def map_A_to_B(list_of_A:list, mapdict_AB:dict) -> list:
+    """This function takes in a list (call as A) and a 
+    dictionary who keys include elements of the list A. Using
+    this dictionary and the input list A, an output list is generaed
+    where the original elements of the list A are mapped to the 
+    values of the dictionary provided for each key.
+    
+    Args:
+        list_of_A (list): an input list
+        mapdict_AB (dict): a dictionary with keys corresponding to the input list elements
+    """
+    return [*map(mapdict_AB.get, list_of_A)]
 
 @get_logs(src.BASE_LOGGERNAME)
 def get_types_dict(df: pd.DataFrame) -> dict:
@@ -122,7 +135,7 @@ def to_excel(df, output_folder, _id, df_name):
         df.to_excel(f'{output_folder}/{df_name}.xlsx')
 
 @get_logs(src.BASE_LOGGERNAME)
-def generate_revisions_df(op: str, pat: str, requirement_col: str):
+def generate_revisions_df(op: str, pat: str, requirement_col: str = 'Requirement', revision_number_col: str = 'revision'):
     directory = Path(op)
     matching_files = list(directory.rglob(pat))
     dfs=[]
@@ -131,14 +144,15 @@ def generate_revisions_df(op: str, pat: str, requirement_col: str):
         temp_df = temp_df.reset_index().rename(columns={requirement_col:f'Revised_{requirement_col}', 'index':f'{requirement_col}_#'})
         dfs.append(temp_df)
     # concat dfs
-    revisions_df = pd.concat(dfs, ignore_index=True, axis=0)[[f'Revised_{requirement_col}',f'{requirement_col}_#','revision']]
+    revisions_df = pd.concat(dfs, ignore_index=True, axis=0)#[[f'Revised_{requirement_col}',f'{requirement_col}_#','revision']]
     revisions_df = revisions_df[revisions_df[f'Revised_{requirement_col}'].str.strip() != '']
     to_excel(revisions_df, op, False, 'revisions_df')
     return revisions_df
     
 @get_logs(src.BASE_LOGGERNAME)
-def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement'):
+def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement', revision_number_col='revision'):
     #merge latest revisions to original requirements dataframe
+    revisions_df = revisions_df.sort_values(by=[f'{requirement_col}_#', revision_number_col], ascending=True).drop_duplicates(subset=[f'{requirement_col}_#'], keep='last').reset_index()
     reqs_df = pd.merge(
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
     )

@@ -98,3 +98,52 @@ def eval_has_escape_clause(text:str) -> bool:
             return True
     else:
         return False
+    
+@get_logs(LOGGERNAME)
+def eval_has_open_end_clause(text:str) -> bool:
+    """
+    R9: Criteria from 4.1.9 INCOSE Guide to Writing Requirements:
+        check if text contains open-end clauses
+    """
+    clauses = [
+          "including but not limited to", "etc.", "and so on",
+    ]
+    for clause in clauses:
+        if add_spaces(clause) in text:
+            return True
+    else:
+        return False
+    
+@get_logs(LOGGERNAME)
+def eval_has_superfl_inf(text:str) -> bool: # revise function to check for form "to" + "a verb"
+    """
+    R10: Criteria from 4.1.10 INCOSE Guide to Writing Requirements:
+        check if text contains superfluous infinitives
+    """
+    superfl_inf = [
+           "to be designed to", "to be able to", "to be capable of", "to enable", "to allow"
+    ]
+
+    for _inf in superfl_inf:
+        if add_spaces(_inf) in text:
+            return True
+    else:
+        return False
+    
+@get_logs(LOGGERNAME)
+def eval_has_combinators(text:str) -> bool: # revise function to check for form "to" + "a verb"
+    """
+    R19: Criteria from 4.4.2 INCOSE Guide to Writing Requirements:
+        check if text contains  words that join or combine clauses
+    """
+    combinators = [
+            "and", "or", "then", "unless", "but", "as well as", "but also", 
+            "however", "whether", "meanwhile", "whereas", "on the other hand",
+            "otherwise"
+    ]
+
+    for comb in combinators:
+        if add_spaces(comb) in text:
+            return True
+    else:
+        return False

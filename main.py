@@ -30,7 +30,7 @@ from src.components.promptrunner import IncoseRequirementReviewer
 from src.components import prompteval as pe
 
 
-def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
+def run_eval_loop(df, runner, output_data_folder, eval_func_to_rule_id_map, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
     #
     #
     # run evaluation algorithm
@@ -47,6 +47,7 @@ def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals'
         # run evals on df
         df = runner.call_evals(df, runner.id_col)
         df = runner.get_failed_evals(df)
+        df = runner.map_failed_evals_to_rule_ids(df, eval_func_to_rule_id_map)
         proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
         if (df is not None):
             df = df.fillna('')
@@ -56,14 +57,29 @@ def run_eval_loop(df, runner, output_data_folder, failed_eval_col='failed_evals'
                 proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
                 df = df[~pass_cond]
             if len(df) > 0:
+                prior_revision_df = df.copy()[[incose_reviewer.id_col, failed_eval_col, f"{failed_eval_col}_rule_ids"]]
+                prior_revision_df.columns = [f"{c}_prior_revision" for c in prior_revision_df.columns]
                 proj_logger.info(f'{len(df)} Requirements still require evaluation')
                 # run prompts for requirements containing failed evals
                 evals_lists = list(df[failed_eval_col].values)
                 print(f"Eval lists: {evals_lists}")
                 args_lists = list(df[incose_reviewer.id_col].values)
+                # run revision prompts
                 revised_df = incose_reviewer(evals_lists, args_lists, capture_func)
                 revised_df['revision'] = iter + 1
-                revised_df = revised_df[[incose_reviewer.id_col,'revision']]
+                revised_df = pd.concat([prior_revision_df, revised_df], axis=1)
+                # if any output from ai is blank, then use the previous revision
+                revised_df[incose_reviewer.id_col] = revised_df[incose_reviewer.id_col].fillna(revised_df[f"{incose_reviewer.id_col}_prior_revision"]) 
+                proj_logger.info(f'The final iteration is being run. Perform a final evaluation.')
+                final_eval_df = revised_df.copy()
+                final_eval_df = runner.call_evals(final_eval_df, incose_reviewer.id_col)
+                final_eval_df = runner.get_failed_evals(final_eval_df)
+                final_eval_df = runner.map_failed_evals_to_rule_ids(final_eval_df, eval_func_to_rule_id_map)
+                print(final_eval_df)
+                final_eval_df = final_eval_df[[failed_eval_col, f"{failed_eval_col}_rule_ids"]]
+                final_eval_df.columns = [f"{c}_curr_rev" for c in final_eval_df.columns]
+                revised_df = pd.concat([revised_df, final_eval_df], axis=1)
+                print(revised_df)
                 utils.to_excel(revised_df, output_data_folder, str(iter), 'revised_df_iter')
             proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
 
@@ -112,7 +128,6 @@ if __name__ == "__main__":
         replace_with=REPLACE_WITH
     )
     incose_guide_sections_df = incose_preprocessor.df
-
     # load selected base template messages
     base_template_messages = pp.BASE_TEMPLATES[SELECTED_BASE_TEMPLATE_NAME]
 
@@ -122,7 +137,6 @@ if __name__ == "__main__":
         base_messages=base_template_messages,
         output_data_folder_path=OUTPUT_DATA_FOLDER
     )
-
     # instantiate incose requirement reviewer
     incose_reviewer = IncoseRequirementReviewer(
         llm=ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL_NAME),
@@ -138,20 +152,24 @@ if __name__ == "__main__":
         df=reqs_df,
         runner=incose_reviewer,
         output_data_folder=OUTPUT_DATA_FOLDER,
+        eval_func_to_rule_id_map=incose_template_builder.EVAL_TO_RULE_MAPPING,
         failed_eval_col='failed_evals',
-        max_iter=MAX_NUM_ITER
+        max_iter=MAX_NUM_ITER,
     )
 
     # generate revisions df
     revisions_df = utils.generate_revisions_df(
         op=OUTPUT_DATA_FOLDER,
         pat="revised_df*",
-        requirement_col='Requirement'
+        requirement_col='Requirement',
+        revision_number_col = 'revision'
     )
 
     # merge revisions df to original requirements
     reqs_df = utils.merge_revisions_df(
         op=OUTPUT_DATA_FOLDER,
         reqs_df=reqs_df, 
-        revisions_df=revisions_df
+        revisions_df=revisions_df,
+        requirement_col='Requirement',
+        revision_number_col = 'revision'
     )

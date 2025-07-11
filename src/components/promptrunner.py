@@ -14,6 +14,7 @@ from langchain_core.runnables import (
 import src
 from src.prj_logger import get_logs
 import src.components.prompteval as pe
+from src.utils import map_A_to_B
 
 
 class PromptRunner:
@@ -168,4 +169,11 @@ class IncoseRequirementReviewer(PromptRunner):
     def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
         eval_cols = [c for c in df.columns if c.startswith("eval")]
         df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
+        return df
+    
+    @get_logs(LOGGERNAME)
+    def map_failed_evals_to_rule_ids(self, df: pd.DataFrame, eval_to_rule_map: dict) -> pd.DataFrame:
+        print(df.head(5))
+        df['failed_evals_rule_ids'] = df['failed_evals'].apply(lambda _l: map_A_to_B(_l, eval_to_rule_map) if type(_l) == list else None)
+        print(df.head(5))
         return df

@@ -29,6 +29,12 @@ BASE_TEMPLATES = {
             'system': 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
             'user': 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}'
         },
+        'req-evaluator-gen-1':{
+            'name': 'req-evaluator-gen-1',
+            'description': 'This template is designed to assess an input requirement holistically on Section 4 of the Guide. Specifically, the intent is to provide the definition and elaboration for various stated rules and have the prompt respond which rules the given requirement violates',
+            'system': '',
+            'user': ''
+        }
 
     }
 
@@ -263,6 +269,12 @@ class BuildTemplates:
             ])
 
     
+class BuildEvaluatorTemplate(BuildTemplates):
+
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildEvaluatorTemplate"
+
+    
+
 class BuildIncoseTemplates(BuildTemplates):
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
@@ -272,8 +284,15 @@ class BuildIncoseTemplates(BuildTemplates):
         ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
         ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
         ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
+        ('eval_has_open_end_clause', pe.eval_has_open_end_clause, 'R9'),
+        ('eval_has_superfl_inf', pe.eval_has_superfl_inf, 'R10'),
+        ('eval_has_combinators', pe.eval_has_combinators, 'R19')
     ]
 
+    EVAL_TO_RULE_MAPPING = {}
+    for t in EVAL_FUNC_MAPPING:
+        EVAL_TO_RULE_MAPPING[t[0]] = t[2]
+    
     def __init__(self, df, base_messages, output_data_folder_path):
         super().__init__(df, base_messages)
         self.output_data_folder_path = output_data_folder_path
@@ -357,6 +376,7 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.get_sections_df()
         self.add_section_text()
         self.get_incose_definition()
+        self.get_incose_elaboration()
         self.get_incose_examples()
         self.remove_bracketed_text()
         self.clean_incose_examples()
