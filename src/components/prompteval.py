@@ -14,10 +14,6 @@ from src.prj_logger import get_logs
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
 
-@get_logs(LOGGERNAME)
-def add_spaces(x: str) -> str:
-    #return f" {x} "
-    return x
 
 @get_logs(LOGGERNAME)
 def convert_bool_to_ohe(bool_result: bool) -> int:
@@ -41,11 +37,13 @@ def eval_if_vague_verb(text: str) -> bool:
     R3: Criteria from 4.1.3 INCOSE Guide to Writing Requirements:
         check if the requirements uses a vague verb 
     """
+    
     vague_verbs = [
         "support", "process", "handle", "track", "manage", "flag"
     ]
+    text = text.split()
     for verb in vague_verbs:
-        if add_spaces(verb) in text:
+        if verb in text:
             return True
     else:
         return False
@@ -56,7 +54,8 @@ def eval_has_a_def_article(text: str) -> bool:
     R5: Criteria from 4.1.5 INCOSE Guide to Writing Requirements:
         check if text contains indefinite article \"a\" 
     """
-    if add_spaces("a") in text:
+    text = text.split()
+    if ["a"] in text:
         return True
     else:
         return False
@@ -74,8 +73,9 @@ def eval_has_vague_terms(text: str) -> bool:
         "adequate", "appropriate", "efficient", "effective", "proficient", "reasonable","customary",
         "usually", "approximately", "sufficiently","typically"
     ]
+    text = text.split()
     for term in vague_terms:
-        if add_spaces(term) in text:
+        if term in text:
             return True
     else:
         return False
@@ -94,7 +94,7 @@ def eval_has_escape_clause(text:str) -> bool:
          "if practicable"
     ]
     for clause in clauses:
-        if add_spaces(clause) in text:
+        if clause in text:
             return True
     else:
         return False
@@ -109,7 +109,7 @@ def eval_has_open_end_clause(text:str) -> bool:
           "including but not limited to", "etc.", "and so on",
     ]
     for clause in clauses:
-        if add_spaces(clause) in text:
+        if clause in text:
             return True
     else:
         return False
@@ -125,7 +125,7 @@ def eval_has_superfl_inf(text:str) -> bool: # revise function to check for form 
     ]
 
     for _inf in superfl_inf:
-        if add_spaces(_inf) in text:
+        if _inf in text:
             return True
     else:
         return False
@@ -141,9 +141,9 @@ def eval_has_combinators(text:str) -> bool: # revise function to check for form 
             "however", "whether", "meanwhile", "whereas", "on the other hand",
             "otherwise"
     ]
-
+    text = text.split()
     for comb in combinators:
-        if add_spaces(comb) in text:
+        if comb in text:
             return True
     else:
         return False

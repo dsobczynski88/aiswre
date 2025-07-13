@@ -3,9 +3,55 @@ from pathlib import Path
 from datetime import datetime
 import flatdict
 import ast
+import yaml
 import src
 from src.prj_logger import get_logs
 
+
+def load_yaml(file_path):
+    """
+    Load a YAML file and return the contents.
+
+    Parameters:
+    file_path (str): The path to the YAML file.
+
+    Returns:
+    dict: The contents of the YAML file as a dictionary.
+    """
+    with open(file_path, 'r') as file:
+        try:
+            data = yaml.safe_load(file)
+            return data
+        except yaml.YAMLError as e:
+            print(f"Error loading YAML file: {e}")
+            return None
+
+def write_to_yaml(file_path, data):
+    """
+    Write data to an existing YAML file.
+
+    Args:
+        file_path (str): The path to the YAML file.
+        data (dict): The data to write to the YAML file.
+    """
+    try:
+        with open(file_path, 'r') as file:
+            # Load existing data
+            existing_data = yaml.safe_load(file) or {}
+        
+        # Update existing data with new data
+        existing_data.update(data)
+
+        # Write the updated data back to the YAML file
+        with open(file_path, 'w') as file:
+            yaml.dump(existing_data, file, default_flow_style=False)
+
+        print(f"Successfully written to {file_path}")
+
+    except FileNotFoundError:
+        print(f"Error: The file {file_path} does not exist.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 def get_current_date_time():
     # Get the current date and time
@@ -140,8 +186,8 @@ def generate_revisions_df(op: str, pat: str, requirement_col: str = 'Requirement
     matching_files = list(directory.rglob(pat))
     dfs=[]
     for file in matching_files:
-        temp_df = pd.read_excel(file, index_col=[0])
-        temp_df = temp_df.reset_index().rename(columns={requirement_col:f'Revised_{requirement_col}', 'index':f'{requirement_col}_#'})
+        temp_df = pd.read_excel(file)
+        temp_df = temp_df.rename(columns={requirement_col:f'Revised_{requirement_col}'}).drop(columns=['Unnamed: 0'])
         dfs.append(temp_df)
     # concat dfs
     revisions_df = pd.concat(dfs, ignore_index=True, axis=0)#[[f'Revised_{requirement_col}',f'{requirement_col}_#','revision']]
