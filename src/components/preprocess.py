@@ -21,19 +21,29 @@ BASE_TEMPLATES = {
             'name': 'req-reviewer-instruct-1',
             'description': 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.',
             'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
-            'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
+            'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}',
+            'func': lambda x: ''.join(re.findall('Final Revision:(.*)',x))
         },
         'req-reviewer-instruct-2': {
             'name': 'req-reviewer-instruct-2',
             'description': 'Similar to req-reviewer-instruct-1; however, additional specification is provided to ensure the requirement does not become exceedingly lengthy.',
             'system': 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
-            'user': 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}'
+            'user': 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}',
+            'func': None
+        },
+        'req-reviewer-instruct-3':{
+            'name': 'req-reviewer-instruct-2',
+            'description': 'Similar to req-reviewer-instruct-2; however, only the definition is provided in the prompt (no examples)',
+            'system': 'Step 1 - The user will hand over an evaluation Criteria and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
+            'user': 'Criteria:\n{definition}\nRequirement:\n{req}',
+            'func': None
         },
         'req-evaluator-gen-1':{
             'name': 'req-evaluator-gen-1',
             'description': 'This template is designed to assess an input requirement holistically on Section 4 of the Guide. Specifically, the intent is to provide the definition and elaboration for various stated rules and have the prompt respond which rules the given requirement violates',
             'system': '',
-            'user': ''
+            'user': '',
+            'func': None
         }
 
     }
@@ -270,9 +280,8 @@ class BuildTemplates:
 
     
 class BuildEvaluatorTemplate(BuildTemplates):
-
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildEvaluatorTemplate"
-
+    pass
     
 
 class BuildIncoseTemplates(BuildTemplates):
@@ -309,6 +318,7 @@ class BuildIncoseTemplates(BuildTemplates):
             template_name_prefix='R'
         )
         self.load_evals_config()
+        self.output_func = base_messages['func']
         BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
         incose_guide_sections_df = self.df
         utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')

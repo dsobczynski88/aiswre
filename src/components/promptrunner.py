@@ -106,8 +106,7 @@ class IncoseRequirementReviewer(PromptRunner):
 	"""
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncosePromptRunner"
-    DEFAULT_CAPTURE_FUNC = lambda x: ''.join(re.findall('Final Revision:(.*)',x))
-    
+        
     def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_config, id_col='Requirement'):
         super().__init__(use_structured_llm, llm, pydantic_model)
         self.templates = templates
@@ -115,7 +114,7 @@ class IncoseRequirementReviewer(PromptRunner):
         self.evals_chains = []
         self.id_col = id_col
 
-    def __call__(self, evals_lists, args_lists, capture_func):
+    def revise(self, evals_lists, args_lists, capture_func):
         self.assemble_eval_chain_list(evals_lists, capture_func)
         results = asyncio.run(self.run_multiple_chains(self.evals_chains, args_lists))
         results_df = self.cast_results_to_frame(results)
@@ -153,6 +152,22 @@ class IncoseRequirementReviewer(PromptRunner):
         results_df = results_df.rename(columns={0:self.id_col})
         return results_df
     
+    
+    def run_eval_sequence(self, df: pd.DataFrame, col: str, failed_eval_col: str, col_suffix: Union[str, None], eval_to_rule_map: Union[dict, None] = None):
+        self.call_evals(df, col)
+        self.get_failed_evals(df)
+        if eval_to_rule_map is not None:
+            self.map_failed_evals_to_rule_ids(df, eval_to_rule_map)
+        df = df.drop(columns=[c for c in df.columns if c.startswith('eval')])
+        if col_suffix is not None:
+            failed_eval_cols = [c for c in df.columns if c.startswith('failed_evals')]
+            for c in failed_eval_cols:
+                df.rename(columns={c:f"{col_suffix}_{c}"}, inplace=True)
+                df[f"if_resolved_{col_suffix}_{c}"] = df[f"{col_suffix}_{c}"].apply(lambda _l: 1 - int(bool(len(_l))))
+                df[f"%_resolved_{col_suffix}_{c}"] = round(sum(df[f"if_resolved_{col_suffix}_{c}"]) / len(df[f"if_resolved_{col_suffix}_{c}"]) * 100, 0)
+        return df
+    
+    
     @get_logs(LOGGERNAME)
     def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
         # run evals for each row of the dataframe
@@ -173,7 +188,5 @@ class IncoseRequirementReviewer(PromptRunner):
     
     @get_logs(LOGGERNAME)
     def map_failed_evals_to_rule_ids(self, df: pd.DataFrame, eval_to_rule_map: dict) -> pd.DataFrame:
-        print(df.head(5))
         df['failed_evals_rule_ids'] = df['failed_evals'].apply(lambda _l: map_A_to_B(_l, eval_to_rule_map) if type(_l) == list else None)
-        print(df.head(5))
         return df

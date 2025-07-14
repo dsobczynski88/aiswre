@@ -15,14 +15,14 @@ LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
 
 
-@get_logs(LOGGERNAME)
+
 def convert_bool_to_ohe(bool_result: bool) -> int:
     if bool_result:
         return 1
     else:
         return 0
 
-@get_logs(LOGGERNAME)    
+    
 def eval_is_in_passive_voice(text: str) -> bool:
     """
     R2: Criteria from 4.1.2 INCOSE Guide to Writing Requirements:
@@ -31,7 +31,7 @@ def eval_is_in_passive_voice(text: str) -> bool:
     'check for pattern shall + be + [main_verb]'
     pass
 
-@get_logs(LOGGERNAME)
+
 def eval_if_vague_verb(text: str) -> bool:
     """
     R3: Criteria from 4.1.3 INCOSE Guide to Writing Requirements:
@@ -48,7 +48,7 @@ def eval_if_vague_verb(text: str) -> bool:
     else:
         return False
 
-@get_logs(LOGGERNAME)
+
 def eval_has_a_def_article(text: str) -> bool:
     """
     R5: Criteria from 4.1.5 INCOSE Guide to Writing Requirements:
@@ -60,7 +60,7 @@ def eval_has_a_def_article(text: str) -> bool:
     else:
         return False
 
-@get_logs(LOGGERNAME)
+
 def eval_has_vague_terms(text: str) -> bool:
     """
     R7: Criteria from 4.1.7 INCOSE Guide to Writing Requirements:
@@ -80,7 +80,7 @@ def eval_has_vague_terms(text: str) -> bool:
     else:
         return False
 
-@get_logs(LOGGERNAME)
+
 def eval_has_escape_clause(text:str) -> bool:
     """
     R8: Criteria from 4.1.8 INCOSE Guide to Writing Requirements:
@@ -99,7 +99,7 @@ def eval_has_escape_clause(text:str) -> bool:
     else:
         return False
     
-@get_logs(LOGGERNAME)
+
 def eval_has_open_end_clause(text:str) -> bool:
     """
     R9: Criteria from 4.1.9 INCOSE Guide to Writing Requirements:
@@ -114,7 +114,7 @@ def eval_has_open_end_clause(text:str) -> bool:
     else:
         return False
     
-@get_logs(LOGGERNAME)
+
 def eval_has_superfl_inf(text:str) -> bool: # revise function to check for form "to" + "a verb"
     """
     R10: Criteria from 4.1.10 INCOSE Guide to Writing Requirements:
@@ -130,7 +130,7 @@ def eval_has_superfl_inf(text:str) -> bool: # revise function to check for form 
     else:
         return False
     
-@get_logs(LOGGERNAME)
+
 def eval_has_combinators(text:str) -> bool: # revise function to check for form "to" + "a verb"
     """
     R19: Criteria from 4.4.2 INCOSE Guide to Writing Requirements:

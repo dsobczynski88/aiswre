@@ -202,5 +202,4 @@ def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement',
     reqs_df = pd.merge(
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
     )
-    to_excel(reqs_df, op, False, 'reqs_df_with_revisions')
     return reqs_df

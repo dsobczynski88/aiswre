@@ -31,70 +31,42 @@ from src.components import prompteval as pe
 
 
 def run_eval_loop(df, runner, output_data_folder, eval_func_to_rule_id_map, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
-    #
-    #
     # run evaluation algorithm
     for iter in range(max_iter):
         proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
         if iter > 0:
             df = pd.read_excel(f"{output_data_folder}/revised_df_iter_{iter-1}.xlsx")
-            #
-            # need to fix this function to adjust for case where previous iteration results are unsuccessful post prompt
-            #
             df = df.dropna(subset=[runner.id_col])
         df = df[[runner.id_col, f"{runner.id_col}_#"]]
         proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
         # run evals on df
-        df = runner.call_evals(df, runner.id_col)
-        df = runner.get_failed_evals(df)
-        df = runner.map_failed_evals_to_rule_ids(df, eval_func_to_rule_id_map)
+        df = runner.run_eval_sequence(df, runner.id_col, failed_eval_col, None, eval_func_to_rule_id_map)
         proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
         if (df is not None):
             df = df.fillna('')
             pass_cond = df[failed_eval_col].str.len() == 0
             pass_rows = df[pass_cond]
-            print("$$$$$$$$$$$$")
-            print(df)
-            print("$$$$$$$$$$$$")
-            prior_revision_df = df.copy()[[f"{runner.id_col}_#", runner.id_col, failed_eval_col, f"{failed_eval_col}_rule_ids"]]
+            prior_revision_df = df.copy()[[f"{runner.id_col}_#", runner.id_col, failed_eval_col]]#, f"{failed_eval_col}_rule_ids"]]
             renamed_columns = [f"{c}_prior_revision" for c in prior_revision_df.columns if c != f"{runner.id_col}_#"]
             prior_revision_df.columns = [f"{runner.id_col}_#"] + renamed_columns
             if len(pass_rows) > 0:
                 proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
                 df = df[~pass_cond]
-                print("**********")
-                print(df)
-                print("**********")
             if len(df) > 0:
-                print("#########")
-                print(prior_revision_df)
-                print("#########")
                 proj_logger.info(f'{len(df)} Requirements still require evaluation')
                 # run prompts for requirements containing failed evals
                 evals_lists = list(df[failed_eval_col].values)
-                print(f"Eval lists: {evals_lists}")
                 args_lists = list(df[runner.id_col].values)
                 # run revision prompts
-                revised_df = runner(evals_lists, args_lists, capture_func)
+                revised_df = runner.revise(evals_lists, args_lists, capture_func)
                 revised_df['revision'] = iter + 1
                 revised_df.index = df.index
-                #print(revised_df)
-                print(revised_df)
                 revised_df = revised_df.reset_index().rename(columns={'index':f"{runner.id_col}_#"})
                 revised_df = pd.merge(
                     left=revised_df, right=prior_revision_df, on=f"{runner.id_col}_#", how='inner'
                 )
                 # if any output from ai is blank, then use the previous revision
                 revised_df[runner.id_col] = revised_df[runner.id_col].fillna(prior_revision_df[f"{runner.id_col}_prior_revision"]) 
-                print(revised_df)
-                #proj_logger.info(f'The final iteration is being run. Perform a final evaluation.')
-                #final_eval_df = revised_df.copy()
-                #final_eval_df = runner.call_evals(final_eval_df, runner.id_col)
-                #final_eval_df = runner.get_failed_evals(final_eval_df)
-                #final_eval_df = runner.map_failed_evals_to_rule_ids(final_eval_df, eval_func_to_rule_id_map)
-                #final_eval_df = final_eval_df[[failed_eval_col, f"{failed_eval_col}_rule_ids"]]
-                #final_eval_df.columns = [f"{c}_curr_rev" for c in final_eval_df.columns]
-                #revised_df = pd.concat([revised_df, final_eval_df], axis=1)
                 utils.to_excel(revised_df, output_data_folder, str(iter), 'revised_df_iter')
             proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
 
@@ -106,7 +78,7 @@ if __name__ == "__main__":
     # instantiate openai client
     OPENAI_API_KEY = DOT_ENV['OPENAI_API_KEY']
     # define selected base template name used to build INCOSE rules prompts
-    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-2'
+    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-3'
     # define folder to store run outputs
     RUN_NAME = f"run-{utils.get_current_date_time()}"
     # define main data folder
@@ -127,7 +99,7 @@ if __name__ == "__main__":
     # define the column name in the dataset containing the requirements
     DATASET_REQ_COLNAME = 'Requirement'
     # maximum number of iterations
-    MAX_NUM_ITER = 2
+    MAX_NUM_ITER = 3
     # load logger
     ProjectLogger(src.BASE_LOGGERNAME,f"{OUTPUT_DATA_FOLDER}/{src.BASE_LOGGERNAME}.log").config()
     proj_logger = logging.getLogger(src.BASE_LOGGERNAME)
@@ -176,19 +148,17 @@ if __name__ == "__main__":
     )
 
     # run initial evaluations on the requirements dataset
-    #initial_eval_df = reqs_df.copy()
-    #initial_eval_df = incose_reviewer.call_evals(initial_eval_df, incose_reviewer.id_col)
-    #initial_eval_df = incose_reviewer.get_failed_evals(initial_eval_df)
-    #utils.to_excel(initial_eval_df, MAIN_DATA_FOLDER, False, 'initial_eval_df')
+    reqs_df = incose_reviewer.run_eval_sequence(reqs_df, incose_reviewer.id_col, 'failed_evals', 'initial', None)
 
     # run evaluation loop
     run_eval_loop(
         df=reqs_df,
         runner=incose_reviewer,
         output_data_folder=OUTPUT_DATA_FOLDER,
-        eval_func_to_rule_id_map=incose_template_builder.EVAL_TO_RULE_MAPPING,
+        eval_func_to_rule_id_map=None,#incose_template_builder.EVAL_TO_RULE_MAPPING,
         failed_eval_col='failed_evals',
         max_iter=MAX_NUM_ITER,
+        capture_func=incose_template_builder.output_func
     )
 
     # generate revisions df
@@ -207,3 +177,9 @@ if __name__ == "__main__":
         requirement_col='Requirement',
         revision_number_col = 'revision'
     )
+
+    # run final evaluations on the requirements dataset
+    reqs_df = incose_reviewer.run_eval_sequence(reqs_df, f"Revised_{incose_reviewer.id_col}", 'failed_evals', 'final', None)
+    reqs_df['base_prompt_template'] = SELECTED_BASE_TEMPLATE_NAME
+    reqs_df['max_iterations'] = MAX_NUM_ITER
+    utils.to_excel(reqs_df, OUTPUT_DATA_FOLDER, False, 'reqs_df_with_revisions')
