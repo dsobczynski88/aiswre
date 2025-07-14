@@ -30,6 +30,22 @@ from src.components.promptrunner import IncoseRequirementReviewer
 from src.components import prompteval as pe
 
 
+def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, failed_eval_col,reqs_df):
+    new_result_df = pd.DataFrame(data={
+        'run_id': run_id,
+        'dataset': dataset,
+        'model': model,
+        'template': template,
+        'iternum': iternum,
+        f'%_resolved_initial_{failed_eval_col}': reqs_df[f'%_resolved_initial_{failed_eval_col}'].iloc[0],
+        f'%_resolved_final_{failed_eval_col}': reqs_df[f'%_resolved_final_{failed_eval_col}'].iloc[0]
+    }, index=[0]
+    )
+    results_df = pd.concat([results_df, new_result_df], axis=0, ignore_index=False).dropna(subset=['run_id']).reset_index(drop=True)
+    results_df.drop(columns=[c for c in results_df.columns if "Unnamed" in c], inplace=True)
+    utils.to_excel(results_df, output_fp, False, 'results')     
+
+
 def run_eval_loop(df, runner, output_data_folder, eval_func_to_rule_id_map, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
     # run evaluation algorithm
     for iter in range(max_iter):
@@ -73,12 +89,32 @@ def run_eval_loop(df, runner, output_data_folder, eval_func_to_rule_id_map, fail
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser()
+
+    # Required arguments
+    parser.add_argument('--data', '-d', required=True, type=str, help='The requirements dataset file name')
+    parser.add_argument('--model', '-m', required=True, type=str, help='The string name of the LLM model to be used for revising the requirements')
+    parser.add_argument('--template', '-t', required=True, type=str, help='The string name of the base template to be used, as defined in `preprocess.py`')
+    parser.add_argument('--iternum', '-i', required=True, type=int, help='The maximum number of iterations to be run during the evaluation loop function (`run_eval_loop`)')
+
+    args = parser.parse_args()
+
+    DATASET_FILE_PATH = args.data
+    LLM_MODEL_NAME = args.model
+    SELECTED_BASE_TEMPLATE_NAME = args.template
+    MAX_NUM_ITER = args.iternum
+        
+    DATASET_REQ_COLNAME = 'Requirement'
+    # define selected base template name used to build INCOSE rules prompts
+    #SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-3'
+    # define LLM model for evaluating requirements
+    #LLM_MODEL_NAME = 'gpt-4o-mini'
+    # define the column name in the dataset containing the requirements
+    FAILED_EVAL_COL = 'failed_evals'
     # load constants and environment variables
     DOT_ENV = dotenv_values(".env")
     # instantiate openai client
     OPENAI_API_KEY = DOT_ENV['OPENAI_API_KEY']
-    # define selected base template name used to build INCOSE rules prompts
-    SELECTED_BASE_TEMPLATE_NAME = 'req-reviewer-instruct-3'
     # define folder to store run outputs
     RUN_NAME = f"run-{utils.get_current_date_time()}"
     # define main data folder
@@ -86,7 +122,7 @@ if __name__ == "__main__":
     # define output data folder
     OUTPUT_DATA_FOLDER = f'{MAIN_DATA_FOLDER}/{RUN_NAME}'
     # make run folder 
-    Path(OUTPUT_DATA_FOLDER).mkdir(parents=True, exist_ok=True)    
+    Path(OUTPUT_DATA_FOLDER).mkdir(parents=True, exist_ok=True)
     # define incose guide filepath
     INCOSE_GUIDE_FILEPATH = './src/data/incose_gtwr.pdf'
     # define regex pattern to split out rules in Section 4 of Guide
@@ -94,29 +130,35 @@ if __name__ == "__main__":
     # define preprocessing settings
     REPLACE_TOKENS = ['INCOSE-TP-2010-006-04| VERS/REV:4  |  1 July 2023', "{", "}"]
     REPLACE_WITH = ' ' 
-    # define LLM model for evaluating requirements
-    LLM_MODEL_NAME = 'gpt-4o-mini'
-    # define the column name in the dataset containing the requirements
-    DATASET_REQ_COLNAME = 'Requirement'
-    # maximum number of iterations
-    MAX_NUM_ITER = 3
     # load logger
     ProjectLogger(src.BASE_LOGGERNAME,f"{OUTPUT_DATA_FOLDER}/{src.BASE_LOGGERNAME}.log").config()
     proj_logger = logging.getLogger(src.BASE_LOGGERNAME)
     # load dataset
     #reqs_df = pd.read_excel('./src/data/software_requirements_1.xlsx', index_col=[0])
     #reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})
-    example_requirements = [
-     'The Disputes System shall record the name of the user and the date for any activity that creates or modifies the disputes case in the system.  A detailed history of the actions taken on the case  including the date and the user that performed the action must be maintained for auditing purposes.',
-     'The WCS system shall use appropriate nomenclature and terminology as defined by the Corporate Community Grants organization. All interfaces and reports will undergo usability tests by CCR users.',
-     ' The system will notify affected parties when changes occur affecting clinicals  including but not limited to clinical section capacity changes  and clinical section cancellations.',
-     'Application testability DESC: Test environments should be built for the application to allow testing of the applications different functions.',
-     'The product shall be platform independent.The product shall enable access to any type of development environment and platform.'
-     ]
-    reqs_df = pd.DataFrame({'Requirement': example_requirements})
-    reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})
-    reqs_df.to_excel('./src/data/software_requirements_2.xlsx')
-    reqs_df = pd.read_excel('./src/data/software_requirements_2.xlsx')
+    #example_requirements = [
+    # 'The Disputes System shall record the name of the user and the date for any activity that creates or modifies the disputes case in the system.  A detailed history of the actions taken on the case  including the date and the user that performed the action must be maintained for auditing purposes.',
+    # 'The WCS system shall use appropriate nomenclature and terminology as defined by the Corporate Community Grants organization. All interfaces and reports will undergo usability tests by CCR users.',
+    # ' The system will notify affected parties when changes occur affecting clinicals  including but not limited to clinical section capacity changes  and clinical section cancellations.',
+    # 'Application testability DESC: Test environments should be built for the application to allow testing of the applications different functions.',
+    # 'The product shall be platform independent.The product shall enable access to any type of development environment and platform.'
+    # ]
+    #reqs_df = pd.DataFrame({'Requirement': example_requirements})
+    #reqs_df = reqs_df.reset_index().rename(columns={'index':'Requirement_#'})
+    #reqs_df.to_excel('./src/data/software_requirements_2.xlsx')
+    #reqs_df = pd.read_excel('./src/data/software_requirements_2.xlsx')
+
+    # load results file
+    try:
+        results_df = pd.read_excel(Path(MAIN_DATA_FOLDER) / "results.xlsx")
+    except FileNotFoundError:
+        results_df_columns = [
+            'run_id','dataset','model','template','iternum',
+            f'%_resolved_initial_{FAILED_EVAL_COL}',f'%_resolved_final_{FAILED_EVAL_COL}',
+        ]
+        results_df = pd.DataFrame(columns=results_df_columns, index=[0])
+
+    reqs_df = pd.read_excel(DATASET_FILE_PATH)    
 
     # parse INCOSE guide using the PreprocessIncoseGuide class
     incose_preprocessor = PreprocessIncoseGuide(INCOSE_SECTIONS_REGEX_PAT).preprocess_rules_section_4(
@@ -180,6 +222,5 @@ if __name__ == "__main__":
 
     # run final evaluations on the requirements dataset
     reqs_df = incose_reviewer.run_eval_sequence(reqs_df, f"Revised_{incose_reviewer.id_col}", 'failed_evals', 'final', None)
-    reqs_df['base_prompt_template'] = SELECTED_BASE_TEMPLATE_NAME
-    reqs_df['max_iterations'] = MAX_NUM_ITER
     utils.to_excel(reqs_df, OUTPUT_DATA_FOLDER, False, 'reqs_df_with_revisions')
+    append_results(results_df, MAIN_DATA_FOLDER, RUN_NAME, DATASET_FILE_PATH, LLM_MODEL_NAME, SELECTED_BASE_TEMPLATE_NAME, MAX_NUM_ITER, FAILED_EVAL_COL, reqs_df)

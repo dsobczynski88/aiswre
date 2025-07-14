@@ -1,0 +1,193 @@
+2025-07-14 16:56:03,331 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: preprocess_rules_section_4
+2025-07-14 16:56:03,331 - reviewer.Sectionalize - DEBUG - Entering: get_pdf_text
+2025-07-14 16:56:03,620 - reviewer.Sectionalize - DEBUG - get_pdf_text completed in 0.289004 seconds
+2025-07-14 16:56:03,620 - reviewer.Sectionalize - DEBUG - Entering: save_text
+2025-07-14 16:56:03,622 - reviewer.Sectionalize - DEBUG - save_text completed in 0.001538 seconds
+2025-07-14 16:56:03,622 - reviewer.TextPreprocessor - DEBUG - Entering: clean_text
+2025-07-14 16:56:03,622 - reviewer.TextPreprocessor - DEBUG - Entering: replace
+2025-07-14 16:56:03,623 - reviewer.TextPreprocessor - DEBUG - replace completed in 0.000437 seconds
+2025-07-14 16:56:03,623 - reviewer.TextPreprocessor - DEBUG - Entering: remove_multi_whitespace
+2025-07-14 16:56:03,630 - reviewer.TextPreprocessor - DEBUG - remove_multi_whitespace completed in 0.006280 seconds
+2025-07-14 16:56:03,631 - reviewer.TextPreprocessor - DEBUG - clean_text completed in 0.007836 seconds
+2025-07-14 16:56:03,631 - reviewer.Sectionalize - DEBUG - Entering: save_text
+2025-07-14 16:56:03,632 - reviewer.Sectionalize - DEBUG - save_text completed in 0.001708 seconds
+2025-07-14 16:56:03,633 - reviewer.Sectionalize - DEBUG - Entering: get_sections_df
+2025-07-14 16:56:03,635 - reviewer.Sectionalize - DEBUG - get_sections_df completed in 0.002299 seconds
+2025-07-14 16:56:03,635 - reviewer.Sectionalize - DEBUG - Entering: add_section_text
+2025-07-14 16:56:03,640 - reviewer.Sectionalize - DEBUG - add_section_text completed in 0.005418 seconds
+2025-07-14 16:56:03,640 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: get_incose_definition
+2025-07-14 16:56:03,645 - reviewer.PreprocessIncoseGuide - DEBUG - get_incose_definition completed in 0.004931 seconds
+2025-07-14 16:56:03,645 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: get_incose_elaboration
+2025-07-14 16:56:03,650 - reviewer.PreprocessIncoseGuide - DEBUG - get_incose_elaboration completed in 0.004464 seconds
+2025-07-14 16:56:03,650 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: get_incose_examples
+2025-07-14 16:56:03,651 - reviewer.PreprocessIncoseGuide - DEBUG - get_incose_examples completed in 0.000943 seconds
+2025-07-14 16:56:03,651 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: remove_bracketed_text
+2025-07-14 16:56:03,653 - reviewer.PreprocessIncoseGuide - DEBUG - remove_bracketed_text completed in 0.001472 seconds
+2025-07-14 16:56:03,653 - reviewer.PreprocessIncoseGuide - DEBUG - Entering: clean_incose_examples
+2025-07-14 16:56:03,655 - reviewer.PreprocessIncoseGuide - DEBUG - clean_incose_examples completed in 0.000988 seconds
+2025-07-14 16:56:03,655 - reviewer.PreprocessIncoseGuide - DEBUG - preprocess_rules_section_4 completed in 0.323830 seconds
+2025-07-14 16:56:03,655 - reviewer.BuildTemplates - DEBUG - Entering: add_message_col_to_frame
+2025-07-14 16:56:03,655 - reviewer.BuildTemplates - DEBUG - add_message_col_to_frame completed in 0.000431 seconds
+2025-07-14 16:56:03,655 - reviewer.BuildTemplates - DEBUG - Entering: add_message_col_to_frame
+2025-07-14 16:56:03,656 - reviewer.BuildTemplates - DEBUG - add_message_col_to_frame completed in 0.000397 seconds
+2025-07-14 16:56:03,656 - reviewer.BuildTemplates - DEBUG - Entering: replace_prompt_variable_from_frame
+2025-07-14 16:56:03,658 - reviewer.BuildTemplates - DEBUG - replace_prompt_variable_from_frame completed in 0.001960 seconds
+2025-07-14 16:56:03,658 - reviewer.BuildTemplates - DEBUG - Entering: replace_prompt_variable_from_frame
+2025-07-14 16:56:03,659 - reviewer.BuildTemplates - DEBUG - replace_prompt_variable_from_frame completed in 0.001804 seconds
+2025-07-14 16:56:03,660 - reviewer.BuildTemplates - DEBUG - Entering: assemble_templates_from_df
+2025-07-14 16:56:03,664 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,665 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000511 seconds
+2025-07-14 16:56:03,665 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,665 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000612 seconds
+2025-07-14 16:56:03,667 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,667 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000299 seconds
+2025-07-14 16:56:03,667 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,667 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000254 seconds
+2025-07-14 16:56:03,668 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,668 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000258 seconds
+2025-07-14 16:56:03,668 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,668 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000267 seconds
+2025-07-14 16:56:03,668 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,669 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000257 seconds
+2025-07-14 16:56:03,669 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,669 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000285 seconds
+2025-07-14 16:56:03,669 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,670 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000238 seconds
+2025-07-14 16:56:03,670 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,670 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000231 seconds
+2025-07-14 16:56:03,670 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,670 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000254 seconds
+2025-07-14 16:56:03,671 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,671 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000262 seconds
+2025-07-14 16:56:03,671 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,671 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000286 seconds
+2025-07-14 16:56:03,671 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,672 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000272 seconds
+2025-07-14 16:56:03,672 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,672 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000242 seconds
+2025-07-14 16:56:03,672 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,673 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000235 seconds
+2025-07-14 16:56:03,673 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,673 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000228 seconds
+2025-07-14 16:56:03,673 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,674 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000235 seconds
+2025-07-14 16:56:03,674 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,674 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000238 seconds
+2025-07-14 16:56:03,674 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,674 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000242 seconds
+2025-07-14 16:56:03,675 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,675 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000319 seconds
+2025-07-14 16:56:03,675 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,675 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000276 seconds
+2025-07-14 16:56:03,677 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,677 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000248 seconds
+2025-07-14 16:56:03,677 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,677 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000247 seconds
+2025-07-14 16:56:03,679 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,679 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000265 seconds
+2025-07-14 16:56:03,679 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,679 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000278 seconds
+2025-07-14 16:56:03,680 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,680 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000425 seconds
+2025-07-14 16:56:03,680 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,681 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000312 seconds
+2025-07-14 16:56:03,681 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,681 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000278 seconds
+2025-07-14 16:56:03,681 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,682 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000285 seconds
+2025-07-14 16:56:03,682 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,682 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000363 seconds
+2025-07-14 16:56:03,683 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,683 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000366 seconds
+2025-07-14 16:56:03,683 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,684 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000269 seconds
+2025-07-14 16:56:03,684 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,684 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000277 seconds
+2025-07-14 16:56:03,684 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,685 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000267 seconds
+2025-07-14 16:56:03,685 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,685 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000317 seconds
+2025-07-14 16:56:03,686 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,686 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000297 seconds
+2025-07-14 16:56:03,686 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,686 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000291 seconds
+2025-07-14 16:56:03,687 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,687 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000250 seconds
+2025-07-14 16:56:03,687 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,687 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000260 seconds
+2025-07-14 16:56:03,688 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,688 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000245 seconds
+2025-07-14 16:56:03,688 - reviewer.BuildTemplates - DEBUG - Entering: get_template_from_messages
+2025-07-14 16:56:03,688 - reviewer.BuildTemplates - DEBUG - get_template_from_messages completed in 0.000228 seconds
+2025-07-14 16:56:03,688 - reviewer.BuildTemplates - DEBUG - assemble_templates_from_df completed in 0.028773 seconds
+2025-07-14 16:56:03,688 - reviewer - DEBUG - Entering: load_evals_config
+2025-07-14 16:56:03,689 - reviewer - DEBUG - load_evals_config completed in 0.000181 seconds
+2025-07-14 16:56:03,691 - reviewer - DEBUG - Entering: write_text
+2025-07-14 16:56:03,693 - reviewer - DEBUG - write_text completed in 0.001457 seconds
+2025-07-14 16:56:03,693 - reviewer - DEBUG - Entering: to_excel
+2025-07-14 16:56:03,766 - reviewer - DEBUG - to_excel completed in 0.072925 seconds
+2025-07-14 16:56:04,441 - reviewer.IncosePromptRunner - DEBUG - Entering: call_evals
+2025-07-14 16:56:04,448 - reviewer.IncosePromptRunner - DEBUG - call_evals completed in 0.006734 seconds
+2025-07-14 16:56:04,448 - reviewer.IncosePromptRunner - DEBUG - Entering: get_failed_evals
+2025-07-14 16:56:04,449 - reviewer.IncosePromptRunner - DEBUG - get_failed_evals completed in 0.001214 seconds
+2025-07-14 16:56:04,451 - reviewer - INFO - Entering: iter num 0 of run_eval_loop
+2025-07-14 16:56:04,451 - reviewer - INFO - Calling evaluations for iter num 0 of run_eval_loop
+2025-07-14 16:56:04,451 - reviewer.IncosePromptRunner - DEBUG - Entering: call_evals
+2025-07-14 16:56:04,462 - reviewer.IncosePromptRunner - DEBUG - call_evals completed in 0.010069 seconds
+2025-07-14 16:56:04,462 - reviewer.IncosePromptRunner - DEBUG - Entering: get_failed_evals
+2025-07-14 16:56:04,463 - reviewer.IncosePromptRunner - DEBUG - get_failed_evals completed in 0.001470 seconds
+2025-07-14 16:56:04,464 - reviewer - INFO - Evaluations completed for iter num 0 of run_eval_loop
+2025-07-14 16:56:04,466 - reviewer - INFO - 5 Requirements still require evaluation
+2025-07-14 16:56:04,466 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_eval_chain_list
+2025-07-14 16:56:04,466 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,467 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000767 seconds
+2025-07-14 16:56:04,467 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,467 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000232 seconds
+2025-07-14 16:56:04,468 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,468 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000248 seconds
+2025-07-14 16:56:04,468 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,468 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000260 seconds
+2025-07-14 16:56:04,469 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,469 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000284 seconds
+2025-07-14 16:56:04,469 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,469 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000224 seconds
+2025-07-14 16:56:04,470 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,470 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000215 seconds
+2025-07-14 16:56:04,470 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,470 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000393 seconds
+2025-07-14 16:56:04,470 - reviewer.IncosePromptRunner - DEBUG - Entering: assemble_chain_from_template
+2025-07-14 16:56:04,471 - reviewer.IncosePromptRunner - DEBUG - assemble_chain_from_template completed in 0.000276 seconds
+2025-07-14 16:56:04,471 - reviewer.IncosePromptRunner - DEBUG - assemble_eval_chain_list completed in 0.005315 seconds
+2025-07-14 16:56:04,471 - reviewer.PromptRunner - DEBUG - Entering: run_multiple_chains
+2025-07-14 16:56:04,471 - reviewer.PromptRunner - DEBUG - run_multiple_chains completed in 0.000308 seconds
+2025-07-14 16:56:04,474 - reviewer.PromptRunner - DEBUG - Entering: run_chain
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - run_chain completed in 0.000427 seconds
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - Entering: run_chain
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - run_chain completed in 0.000154 seconds
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - Entering: run_chain
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - run_chain completed in 0.000167 seconds
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - Entering: run_chain
+2025-07-14 16:56:04,475 - reviewer.PromptRunner - DEBUG - run_chain completed in 0.000171 seconds
+2025-07-14 16:56:04,476 - reviewer.PromptRunner - DEBUG - Entering: run_chain
+2025-07-14 16:56:04,476 - reviewer.PromptRunner - DEBUG - run_chain completed in 0.000157 seconds
+2025-07-14 16:56:04,476 - reviewer.PromptRunner - INFO - awaiting results...
+2025-07-14 16:56:06,715 - reviewer.PromptRunner - INFO - results fetched...
+2025-07-14 16:56:06,716 - reviewer.IncosePromptRunner - DEBUG - Entering: cast_results_to_frame
+2025-07-14 16:56:06,717 - reviewer.IncosePromptRunner - DEBUG - cast_results_to_frame completed in 0.000645 seconds
+2025-07-14 16:56:06,718 - reviewer - DEBUG - Entering: to_excel
+2025-07-14 16:56:06,734 - reviewer - DEBUG - to_excel completed in 0.015034 seconds
+2025-07-14 16:56:06,734 - reviewer - INFO - Exiting: iter num: 0 of run_eval_loop
+2025-07-14 16:56:06,734 - reviewer - DEBUG - Entering: generate_revisions_df
+2025-07-14 16:56:06,742 - reviewer - DEBUG - Entering: to_excel
+2025-07-14 16:56:06,757 - reviewer - DEBUG - to_excel completed in 0.014715 seconds
+2025-07-14 16:56:06,757 - reviewer - DEBUG - generate_revisions_df completed in 0.022620 seconds
+2025-07-14 16:56:06,757 - reviewer - DEBUG - Entering: merge_revisions_df
+2025-07-14 16:56:06,761 - reviewer - DEBUG - merge_revisions_df completed in 0.003385 seconds
+2025-07-14 16:56:06,761 - reviewer.IncosePromptRunner - DEBUG - Entering: call_evals
+2025-07-14 16:56:06,766 - reviewer.IncosePromptRunner - DEBUG - call_evals completed in 0.005645 seconds
+2025-07-14 16:56:06,767 - reviewer.IncosePromptRunner - DEBUG - Entering: get_failed_evals
+2025-07-14 16:56:06,768 - reviewer.IncosePromptRunner - DEBUG - get_failed_evals completed in 0.001424 seconds
+2025-07-14 16:56:06,769 - reviewer - DEBUG - Entering: to_excel
+2025-07-14 16:56:06,784 - reviewer - DEBUG - to_excel completed in 0.014942 seconds
+2025-07-14 16:56:06,787 - reviewer - DEBUG - Entering: to_excel
+2025-07-14 16:56:06,804 - reviewer - DEBUG - to_excel completed in 0.017418 seconds
