@@ -22,11 +22,6 @@ This project leverages `langchain-openai` to build a software requirement refine
 
 ### Overview of Software Modules
 
-<style>
-table, th, td {
-  border: 1px solid black;
-}
-</style>
 |name         |description|
 |------------ |-----------|
 |aiswre         |This is the main script called when running the program. In addition to loading all configuration settings and input data, it contains the function `run_eval_loop`, which executes the requirement refinement process. Specifically, the function takes in a list of requirements, evaluates them using specific evaluation functions, and based on which criteria failed, runs tailored prompts designed to correct those specific failures. The algorithm is designed to run until all requirements have passed all criteria or the set number of maximum iterations has been met.|
