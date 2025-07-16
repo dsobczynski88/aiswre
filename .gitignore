@@ -1,0 +1,12 @@
+.env
+aiswre.egg-info/
+__pycache__/
+notebooks/
+blogpost/
+archive/
+test.py
+reviser.py
+sectionalize_pdf.py
+playground.py
+playground.ipynb
+rag_app.py
