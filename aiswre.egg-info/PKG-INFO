@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: aiswre
-Version: 0.0.1
-Summary: NLP and AI Toolkit for Software Requirements Engineering
-Author-email: Daniel Sobczynski <dsobczynski88@gmail.com>
-License: GPL-3.0-or-later
-Requires-Python: >=3.10
-License-File: LICENSE
-Dynamic: license-file
