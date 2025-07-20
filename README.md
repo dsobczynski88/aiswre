@@ -88,8 +88,6 @@ This section provides a synopsis of the workflow that occurs when running `aiswr
 - Enter the following command to run the program:
 	- `python -m aiswre -d <reqs_filename> -m <openai_model> -t <base_prompt_template> -i <max_iter>`
 
-**NOTE:** There are other ways (besides using a .env file) to define the API key. This is the approach used in this project.
-
 ### Example Demo
 
 In this example, we will evaluate five (5) requirements from the Kaggle dataset. For simplification, the extent of our evaluation will be limited to six (6) Section 4 Rules (R3,R7,R8,R9,R10,R19). The requirements to be reviewed are defined below and saved to an Excel file in the ./src/data folder. 
@@ -129,12 +127,7 @@ In this example, we will evaluate five (5) requirements from the Kaggle dataset.
 	|The WCS system shall use appropriate nomenclature and terminology as defined by the Corporate Community Grants organization. All interfaces and reports will undergo usability tests by CCR users.|The WCS system shall **implement** the nomenclature defined by the Corporate Community Grants organization. All interfaces **shall complete usability tests with a minimum of 15 CCR users within a maximum time frame of 30 days following their development.**|
 	|The system will notify affected parties when changes occur affecting clinicals  including but not limited to clinical section capacity changes  and clinical section cancellations.|The system shall notify affected parties when changes occur **affecting clinical section capacity. The system shall notify affected parties when changes occur affecting clinical section cancellations.**|
 	|Application testability DESC: Test environments should be built for the application to allow testing of the applications different functions.|The test environments **shall** be built for the application **to test its different functions.**|
-
-- <u>Discuss the results.</u>
-	- The original requirements failed tests for presence of vague terms, combinators, open-end clauses, and superfluous infinitives. For example, the requirement beginning with "The system will notify..." contains the phrase "including but not limited to", which is an open-end clause not recommended by Rule 9. The requirement beginning "Application testability..." failed evaluation for superfluous infinitives as it contains the infinitive "to allow".
-	- The revised version of these requirements do not contain these ambiguous phrases and as a result, all criteria is passed.
-	- The question remains, is this now a *"high-quality"* requirement? Ultimately, the answer will come from the team working on this project; however, it is concluded that the program successfully revised the requirements to be compliant with the six (6) INCOSE rules in-scope for this demo.  
-       
+      
 ### Future Work
 
 At present, this work is structured in a deterministic way that limits its ability to improvise, and the use of more complex LCEL expressions and AI agents is a future area of exploration. In addition, a more in-depth exploration of prompt engineering offers potential for the application to yield more useful results. This same thought process applies to the evaluation functions to refine the extent to which outputs can be measured. An additional area is to perform a feedback study from industry experts on the results from the tool and compare this with an AI-enabled feedback study.
@@ -146,8 +139,6 @@ The program itself will greatly benefit from usage of more advanced approaches i
 I'd like to thank my colleagues who have encouraged me to pursue learning new skills and following through on ideas. In addition, I was able to develop this project with the help of countless articles from Medium and stackoverflow. Additionally, the Udemy course *The Complete Prompt Engineering for AI Bootcamp (2025)* has been extremely helpful. I am very thankful for the individuals who create and make available such resources.
  
 A few comments about me: I am a software quality engineer who is passionate about designing creative ways to solve problems and continuously improve on standard ways of working. I find NLP and generative AI to be a remarkably exciting and interesting field, and I truly enjoy working "hands on" with this technology :sunglasses:. Future work also involves refining the methods to be more efficient and enhance readability through choice of data structure. Please send me comments on aspects that you found interesting and feedback on how it could be improved.
-
-### Code: [aiswre](https://github.com/dsobczynski88/aiswre)
 
 ### References
 

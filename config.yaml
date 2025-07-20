@@ -1,0 +1,40 @@
+FILE_LOCATIONS:
+  MAIN_DATA_FOLDER: './src/data'
+  INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
+
+REQUIREMENTS_DATASET_SETTINGS:
+  REQ_COLNAME: 'Requirement'
+  FAILED_EVAL_COL: 'failed_evals'
+
+INCOSE_GUIDE_SETTINGS:
+  SECTIONS_REGEX_PAT: r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
+  REPLACE_TOKENS:
+    - 'INCOSE-TP-2010-006-04| VERS/REV:4  |  1 July 2023'
+    - '{'
+    - '}'
+  REPLACE_WITH: ' '
+
+BASE_PROMPT_TEMPLATES:
+  req-reviewer-instruct-1:
+    name: 'req-reviewer-instruct-1'
+    description: 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.'
+    system: 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Lets think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".'
+    user: 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
+    func: None
+  req-reviewer-instruct-2:
+    name:
+    description:
+    system:
+    user:
+    func: None
+
+PROMPT_EVALUTION_CONFIG:
+  R2: 'eval_is_in_passive_voice'
+  R3: 'eval_if_vague_verb'
+  R7: 'eval_has_vague_terms'
+  R8: 'eval_has_escape_clause'
+  R9: 'eval_has_open_end_clause'
+  R10: 'eval_has_superfl_inf'
+  R19: 'eval_has_combinators' 
+
+EVALUATION_FUNCTION_MAP:

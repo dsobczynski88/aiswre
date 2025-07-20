@@ -1,19 +1,12 @@
+from typing import Union, List
 import re
 import logging
-import asyncio
-import nest_asyncio
-from pathlib import Path
-from typing import Union, List
 import pandas as pd
 from tqdm import tqdm
-from langchain_core.prompts.chat import ChatPromptTemplate
 import src
-from src import utils
-from src.prj_logger import get_logs
 
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
-
 
 
 def convert_bool_to_ohe(bool_result: bool) -> int:
