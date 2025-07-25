@@ -203,3 +203,15 @@ def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement',
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
     )
     return reqs_df
+    
+def mk_dict_from_df(df:pd.DataFrame, cols_to_keep:list) -> dict:
+    """Takes in a pandas dataframe and a list of columns and returns
+    a dictionary where the first column in the list is the keys and 
+    the second column the values
+
+    Args:
+        df (pd.DataFrame): Pandas dataframe
+        cols_to_keep (list): Two columns from the dataframe desired 
+            to use as keys and values of the output dict
+    """
+    return dict(df[cols_to_keep].drop_duplicates(subset=cols_to_keep).values)

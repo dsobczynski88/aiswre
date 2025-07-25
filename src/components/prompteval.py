@@ -1,3 +1,27 @@
+"""
+Module that evaluates the quality of requirement specifications based on INCOSE 
+(International Council on Systems Engineering) Guide to Writing Requirements.
+
+This module contains functions that assess various aspects of requirements to 
+identify potential issues such as passive voice, vague verbs, indefinite articles, 
+and other problematic constructs as referenced in the INCOSE guide.
+
+Functions:
+- convert_bool_to_ohe: Converts a boolean input to a one-hot encoded integer (0 or 1).
+- eval_is_in_passive_voice: (Placeholder) Checks if a text is written in passive voice.
+- eval_if_vague_verb: Identifies if a requirement uses any vague verbs.
+- eval_has_a_def_article: Checks if a text contains an indefinite article "a".
+- eval_has_vague_terms: Detects the presence of vague terms within the text.
+- eval_has_escape_clause: Checks for escape clauses which indicate vague conditions.
+- eval_has_open_end_clause: Detects open-end clauses that suggest incompleteness.
+- eval_has_superfl_inf: Identifies the presence of superfluous infinitive phrases.
+- eval_has_combinators: Checks for words that join or combine clauses.
+
+Logging:
+- Configures a logger 'proj_logger' for accurate logging of results and possible issues. 
+"""
+
+
 from typing import Union, List
 import re
 import logging

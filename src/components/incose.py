@@ -19,7 +19,7 @@ from src.utils import map_A_to_B
 import src.components.prompteval as pe
 from src.components.promptrunner import PromptRunner
 from src.components.preprocess import TextPreprocessor, Sectionalize, BuildTemplates
-   
+
 
 class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
 
@@ -30,47 +30,50 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         TextPreprocessor.__init__(self)
 
     @get_logs(LOGGERNAME)
-    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)'):
-        self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s)))
+    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)', _flags=None):
+        self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
     @get_logs(LOGGERNAME)
-    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)'):
-        self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s)))
+    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)', _flags=None):
+        self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
     @get_logs(LOGGERNAME)
-    def get_incose_examples(self, pat=r'Examples:(.*)$', flags=re.DOTALL):
-        self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=flags)))
+    def get_incose_rule_number(self, pat=r'^(R\d+) –', _flags=None):
+        self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags))
+        return self.df
+    
+    @get_logs(LOGGERNAME)
+    def get_incose_examples(self, pat=r'Examples:(.*)$', _flags=re.DOTALL):
+        self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
     @get_logs(LOGGERNAME)
-    def get_incose_rule_number(self, pat=r'R \d{2}'):
-        self.df['rule_number'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s)))
+    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]', _flags=None):
+        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
         return self.df
     
     @get_logs(LOGGERNAME)
-    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]'):
-        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s)))
+    def clean_incose_examples(self, col='examples', pat=r'(Exceptions and relationships:.*)$', _flags=re.DOTALL):
+        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
         return self.df
     
     @get_logs(LOGGERNAME)
-    def clean_incose_examples(self, pat=r'(Exceptions and relationships:.*)$', flags=re.DOTALL):
-        self.df['examples'] = self.df['examples'].apply(lambda s: ''.join(re.sub(pat, '', s)))
-        return self.df
-    
-    @get_logs(LOGGERNAME)
-    def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, replace_with):
+    def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, subpatterns, replace_with):
         self.get_pdf_text(inpath, start_page, end_page)
         self.save_text(outpath / "extract.txt")
         self._pipeline = [
             partial(self.replace, replace_tokens=replace_tokens, replace_with=replace_with),
+            partial(self.resub, pattern=subpatterns, replace_with=replace_with),
             self.remove_multi_whitespace,
+
         ]
         self.text = self.clean_text(self.text)
         self.save_text(outpath / "extract-post-clean.txt")
         self.get_sections_df()
         self.add_section_text()
+        self.get_incose_rule_number()
         self.get_incose_definition()
         self.get_incose_elaboration()
         self.get_incose_examples()
@@ -79,19 +82,51 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         return self
     
 
+
+class BuildIncoseEvalConfig:
+    
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseEvalConfig"
+    
+    def __init__(self, incose_guide_df: pd.DataFrame, rule_num_col='rule_number',rule_to_eval_map: dict) #base_messages: dict):
+        
+        self.incose_guide_df = incose_guide_df
+        self.rule_num_col = rule_num_col
+        self.rule_to_eval_map = rule_to_eval_map
+        self.evals_config = {}
+        self.load_evals_config()
+        #self.output_func = base_messages['func']
+        BuildIncoseEvalConfig.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
+        incose_guide_sections_df = self.incose_guide_df
+        utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
+    
+    @staticmethod
+    @get_logs(src.BASE_LOGGERNAME)
+    def write_text(fp: Path, mode: str, data: dict):
+        with open(fp, mode) as f:
+            f.write(data)
+    
+    @get_logs(src.BASE_LOGGERNAME)
+    def load_evals_config(self):
+        '''load evaluations configuration'''
+        for _rule, _evalname in rule_to_eval_map.items():
+            self.evals_config[_evalname] = {}
+            self.evals_config[_evalname]["func"] = getattr(pe, _evalname) 
+            self.evals_config[_evalname]["template"] = self.templates[_rule]
+        return self.evals_config
+
 class BuildIncoseTemplates(BuildTemplates):
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
 
-    EVAL_FUNC_MAPPING = [
-        ('eval_is_in_passive_voice', pe.eval_is_in_passive_voice,'R2'),
-        ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
-        ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
-        ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
-        ('eval_has_open_end_clause', pe.eval_has_open_end_clause, 'R9'),
-        ('eval_has_superfl_inf', pe.eval_has_superfl_inf, 'R10'),
-        ('eval_has_combinators', pe.eval_has_combinators, 'R19')
-    ]
+    #EVAL_FUNC_MAPPING = [
+    #    ('eval_is_in_passive_voice', pe.eval_is_in_passive_voice,'R2'),
+    #    ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
+    #    ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
+    #    ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
+    #    ('eval_has_open_end_clause', pe.eval_has_open_end_clause, 'R9'),
+    #    ('eval_has_superfl_inf', pe.eval_has_superfl_inf, 'R10'),
+    #    ('eval_has_combinators', pe.eval_has_combinators, 'R19')
+    #]
 
     EVAL_TO_RULE_MAPPING = {}
     for t in EVAL_FUNC_MAPPING:
@@ -112,27 +147,27 @@ class BuildIncoseTemplates(BuildTemplates):
             user_message_colname='user_message',
             template_name_prefix='R'
         )
-        self.load_evals_config()
-        self.output_func = base_messages['func']
-        BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
-        incose_guide_sections_df = self.df
-        utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
+        #self.load_evals_config()
+        #self.output_func = base_messages['func']
+        #BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
+        #incose_guide_sections_df = self.df
+        #utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
         
     
-    @get_logs(src.BASE_LOGGERNAME)
-    def load_evals_config(self):
-        '''load evaluations configuration'''
-        for _eval in BuildIncoseTemplates.EVAL_FUNC_MAPPING:
-            self.evals_config[_eval[0]] = {}
-            self.evals_config[_eval[0]]["func"] = _eval[1]
-            self.evals_config[_eval[0]]["template"] = self.templates[_eval[2]]
-        return self.evals_config
+    #@get_logs(src.BASE_LOGGERNAME)
+    #def load_evals_config(self):
+    #    '''load evaluations configuration'''
+    #    for _eval in BuildIncoseTemplates.EVAL_FUNC_MAPPING:
+    #        self.evals_config[_eval[0]] = {}
+    #        self.evals_config[_eval[0]]["func"] = _eval[1]
+    #        self.evals_config[_eval[0]]["template"] = self.templates[_eval[2]]
+    #    return self.evals_config
 
-    @staticmethod
-    @get_logs(src.BASE_LOGGERNAME)
-    def write_text(fp: Path, mode: str, data: dict):
-        with open(fp, mode) as f:
-            f.write(data)
+    #@staticmethod
+    #@get_logs(src.BASE_LOGGERNAME)
+    #def write_text(fp: Path, mode: str, data: dict):
+    #    with open(fp, mode) as f:
+    #        f.write(data)
 
 
 class IncoseRequirementReviewer(PromptRunner):

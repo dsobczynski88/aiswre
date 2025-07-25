@@ -3,11 +3,46 @@ from pathlib import Path
 import pandas as pd
 import src
 from src import utils
+from src.components.incose import 
 from src.prj_logger import get_logs
+from src.components.incose import (
+    PreprocessIncoseGuide, 
+    BuildIncoseEvalConfig, 
+    BuildIncoseTemplates, 
+    IncoseRequirementReviewer
+)
+
+class BasicWorkflow:
+    
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.workflow"
+    #proj_logger = logging.getLogger(LOGGERNAME)
+
+    def __init__(self,
+                 config_file: str,
+                 data: str,
+                 model: str,
+                 template: str,
+                 iternum: int,
+                 incose_preprocessor: PreprocessIncoseGuide, 
+                 incose_template_builder: BuildIncoseTemplates,
+                 incose_reviewer: IncoseRequirementReviewer):
+        """
+        ENTER DOCSTRING HERE
+        """
+        self.config_file = config_file
+        self.data = data
+        self.model = model
+        self.template = template
+        self.iternum = iternum
+        self.incose_preprocessor = incose_preprocessor
+        self.incose_template_builder = incose_template_builder
+        self.incose_reviewer = incose_reviewer
 
 
-LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
-proj_logger = logging.getLogger(LOGGERNAME)
+    def preprocess(self):
+        
+
+
 
 
 def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, failed_eval_col,reqs_df):

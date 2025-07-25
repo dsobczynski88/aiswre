@@ -200,6 +200,13 @@ class TextPreprocessor:
 
     @staticmethod
     @get_logs(LOGGERNAME)
+    def resub(_str: str, patterns: List[str], replace_with: str, _flags=None):
+        for pat in patterns:
+            _str = re.sub(pat, replace_with, _str, flags=_flags)
+        return _str
+
+    @staticmethod
+    @get_logs(LOGGERNAME)
     def remove_multi_whitespace(_str: str) -> str:
         """Replace multiple space/tab/newline characters with a single space
         Args:
@@ -277,117 +284,3 @@ class BuildTemplates:
                 ("system",system_message),
                 ("human", user_message)
             ])
-
-    
-class BuildEvaluatorTemplate(BuildTemplates):
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildEvaluatorTemplate"
-    pass
-    
-
-class BuildIncoseTemplates(BuildTemplates):
-
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
-
-    EVAL_FUNC_MAPPING = [
-        ('eval_is_in_passive_voice', pe.eval_is_in_passive_voice,'R2'),
-        ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
-        ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
-        ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
-        ('eval_has_open_end_clause', pe.eval_has_open_end_clause, 'R9'),
-        ('eval_has_superfl_inf', pe.eval_has_superfl_inf, 'R10'),
-        ('eval_has_combinators', pe.eval_has_combinators, 'R19')
-    ]
-
-    EVAL_TO_RULE_MAPPING = {}
-    for t in EVAL_FUNC_MAPPING:
-        EVAL_TO_RULE_MAPPING[t[0]] = t[2]
-    
-    def __init__(self, df, base_messages, output_data_folder_path):
-        super().__init__(df, base_messages)
-        self.output_data_folder_path = output_data_folder_path
-        self.evals_config = {}
-        self.add_message_col_to_frame("system")
-        self.add_message_col_to_frame("user")
-        # replace relevant template variables with INCOSE data (e.g., definition, examples)
-        self.replace_prompt_variable_from_frame("user_message", "definition")
-        self.replace_prompt_variable_from_frame("user_message", "examples")
-        # build prompt templates based on incose rules
-        self.assemble_templates_from_df(
-            system_message_colname='system_message',
-            user_message_colname='user_message',
-            template_name_prefix='R'
-        )
-        self.load_evals_config()
-        self.output_func = base_messages['func']
-        BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
-        incose_guide_sections_df = self.df
-        utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
-        
-    
-    @get_logs(src.BASE_LOGGERNAME)
-    def load_evals_config(self):
-        '''load evaluations configuration'''
-        for _eval in BuildIncoseTemplates.EVAL_FUNC_MAPPING:
-            self.evals_config[_eval[0]] = {}
-            self.evals_config[_eval[0]]["func"] = _eval[1]
-            self.evals_config[_eval[0]]["template"] = self.templates[_eval[2]]
-        return self.evals_config
-
-    @staticmethod
-    @get_logs(src.BASE_LOGGERNAME)
-    def write_text(fp: Path, mode: str, data: dict):
-        with open(fp, mode) as f:
-            f.write(data)
-
-
-class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
-
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.PreprocessIncoseGuide"
-
-    def __init__(self, regex):
-        Sectionalize.__init__(self, regex)
-        TextPreprocessor.__init__(self)
-
-    @get_logs(LOGGERNAME)
-    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)'):
-        self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s)))
-        return self.df
-
-    @get_logs(LOGGERNAME)
-    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)'):
-        self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s)))
-        return self.df
-
-    @get_logs(LOGGERNAME)
-    def get_incose_examples(self, pat=r'Examples:(.*)$', flags=re.DOTALL):
-        self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=flags)))
-        return self.df
-    
-    @get_logs(LOGGERNAME)
-    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]'):
-        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s)))
-        return self.df
-    
-    @get_logs(LOGGERNAME)
-    def clean_incose_examples(self, pat=r'(Exceptions and relationships:.*)$', flags=re.DOTALL):
-        self.df['examples'] = self.df['examples'].apply(lambda s: ''.join(re.sub(pat, '', s)))
-        return self.df
-    
-    @get_logs(LOGGERNAME)
-    def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, replace_with):
-        self.get_pdf_text(inpath, start_page, end_page)
-        self.save_text(outpath / "extract.txt")
-        self._pipeline = [
-            partial(self.replace, replace_tokens=replace_tokens, replace_with=replace_with),
-            self.remove_multi_whitespace,
-        ]
-        self.text = self.clean_text(self.text)
-        self.save_text(outpath / "extract-post-clean.txt")
-        self.get_sections_df()
-        self.add_section_text()
-        self.get_incose_definition()
-        self.get_incose_elaboration()
-        self.get_incose_examples()
-        self.remove_bracketed_text()
-        self.clean_incose_examples()
-        return self
