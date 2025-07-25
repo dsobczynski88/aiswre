@@ -22,7 +22,7 @@ Logging:
 """
 
 
-from typing import Union, List
+from typing import Union, List 
 import re
 import logging
 import pandas as pd
