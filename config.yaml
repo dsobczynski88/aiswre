@@ -1,7 +1,7 @@
 FILE_LOCATIONS:
   MAIN_DATA_FOLDER: './src/data'
   INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
-
+  DATASET_FILE_PATH: './src/data/demo_dataset.xlsx'
 REQUIREMENTS_DATASET_SETTINGS:
   REQ_COLNAME: 'Requirement'
   FAILED_EVAL_COL: 'failed_evals'
@@ -23,10 +23,10 @@ BASE_PROMPT_TEMPLATES:
     user: 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
     func: None
   req-reviewer-instruct-2:
-    name:
-    description:
-    system:
-    user:
+    name: 'req-reviewer-instruct-2'
+    description: 'Similar to req-reviewer-instruct-1; however, additional specification is provided to ensure the requirement does not become exceedingly lengthy.'
+    system: 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Lets think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.'
+    user: 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}'
     func: None
 
 PROMPT_EVALUTION_CONFIG:

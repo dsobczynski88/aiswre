@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 import pandas as pd
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 import src
 from src import utils
 from src.prj_logger import get_logs
@@ -11,11 +12,11 @@ from src.components.incose import (
     IncoseRequirementReviewer
 )
 
+
 class BasicWorkflow:
     
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.workflow"
-    #proj_logger = logging.getLogger(LOGGERNAME)
-
+    
     def __init__(self,
                  config_file: str,
                  data: str,
@@ -37,7 +38,11 @@ class BasicWorkflow:
         self.base_template_messages = None
         self.run_name = None
         self.output_data_folder = None
-        
+        self.eval_func_to_rule_id_map = None
+        self.reqs_df = None
+        self.results_df = None
+        self.proj_logger = logging.getLogger(BasicWorkflow.LOGGERNAME)
+
     def load_config(self):
         # load config
         config = utils.load_yaml(self.config_file)
@@ -69,23 +74,98 @@ class BasicWorkflow:
             base_messages=self.base_template_messages,
             output_data_folder_path=self.output_data_folder
         )
+        self.incose_eval_config = BuildIncoseEvalConfig(
+            incose_guide_df=self.incose_preprocessor.df,
+            output_data_folder_path=self.output_data_folder,
+            templates=self.incose_template_builder.templates,
+            rule_to_eval_map=PROMPT_EVALUTION_CONFIG,
+            rule_num_col='rule_number'
+        )
 
-    def revise(self):
-        pass
-    
+    def load_requirements(self):
+        # load requirements dataset
+        try:
+            self.reqs_df = pd.read_excel(self.data)    
+        except FileNotFoundError:
+            raise
+
+        # load master results (or create if not exists)
+        try:
+            self.results_df = pd.read_excel(Path(FILE_LOCATIONS['MAIN_DATA_FOLDER']) / "results.xlsx")
+        except FileNotFoundError:
+            results_df_columns = [
+                'run_id','dataset','model','template','iternum',
+                f"%_resolved_initial_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}",f"%_resolved_final_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}",
+            ]
+            self.results_df = pd.DataFrame(columns=results_df_columns, index=[0])
+
+
+    def revise_requirements(self):
+        
+        self.incose_reviewer = IncoseRequirementReviewer(
+            llm=ChatOllama(model=self.model),
+            use_structured_llm=False,
+            pydantic_model=None,
+            templates=self.incose_template_builder.templates,
+            evals_config=self.incose_eval_config.evals_config,
+            id_col=REQUIREMENTS_DATASET_SETTINGS['REQ_COLNAME']
+        )
+        self.run_eval_loop()
+
+    def run_eval_loop(self):
+        # run evaluation algorithm
+        df = self.reqs_df.copy()
+        for iter in range(self.iternum):
+            self.proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
+            if iter > 0:
+                df = pd.read_excel(f"{self.output_data_folder}/revised_df_iter_{iter-1}.xlsx")
+                df = df.dropna(subset=[self.incose_reviewer.id_col])
+            df = df[[self.incose_reviewer.id_col, f"{self.incose_reviewer.id_col}_#"]]
+            self.proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
+            # run evals on df
+            df = self.incose_reviewer.run_eval_sequence(df, self.incose_reviewer.id_col, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL'], None, self.eval_func_to_rule_id_map)
+            self.proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
+            if (df is not None):
+                df = df.fillna('')
+                pass_cond = df[REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']].str.len() == 0
+                pass_rows = df[pass_cond]
+                prior_revision_df = df.copy()[[f"{self.incose_reviewer.id_col}_#", self.incose_reviewer.id_col, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']]]#, f"{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}_rule_ids"]]
+                renamed_columns = [f"{c}_prior_revision" for c in prior_revision_df.columns if c != f"{self.incose_reviewer.id_col}_#"]
+                prior_revision_df.columns = [f"{self.incose_reviewer.id_col}_#"] + renamed_columns
+                if len(pass_rows) > 0:
+                    self.proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
+                    df = df[~pass_cond]
+                if len(df) > 0:
+                    self.proj_logger.info(f'{len(df)} Requirements still require evaluation')
+                    # run prompts for requirements containing failed evals
+                    evals_lists = list(df[REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']].values)
+                    args_lists = list(df[self.incose_reviewer.id_col].values)
+                    # run revision prompts
+                    revised_df = self.incose_reviewer.revise(evals_lists, args_lists, None)#BASE_PROMPT_TEMPLATES[self.template]["func"])
+                    revised_df['revision'] = iter + 1
+                    revised_df.index = df.index
+                    revised_df = revised_df.reset_index().rename(columns={'index':f"{self.incose_reviewer.id_col}_#"})
+                    revised_df = pd.merge(
+                        left=revised_df, right=prior_revision_df, on=f"{self.incose_reviewer.id_col}_#", how='inner'
+                    )
+                    # if any output from ai is blank, then use the previous revision
+                    revised_df[self.incose_reviewer.id_col] = revised_df[self.incose_reviewer.id_col].fillna(prior_revision_df[f"{self.incose_reviewer.id_col}_prior_revision"]) 
+                    utils.to_excel(revised_df, self.output_data_folder, str(iter), 'revised_df_iter')
+                self.proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
+
     def save_output(self):
         pass
 
 """
-def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, failed_eval_col,reqs_df):
+def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL'],reqs_df):
     new_result_df = pd.DataFrame(data={
         'run_id': run_id,
         'dataset': dataset,
         'model': model,
         'template': template,
         'iternum': iternum,
-        f'%_resolved_initial_{failed_eval_col}': reqs_df[f'%_resolved_initial_{failed_eval_col}'].iloc[0],
-        f'%_resolved_final_{failed_eval_col}': reqs_df[f'%_resolved_final_{failed_eval_col}'].iloc[0]
+        f'%_resolved_initial_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}': reqs_df[f'%_resolved_initial_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}'].iloc[0],
+        f'%_resolved_final_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}': reqs_df[f'%_resolved_final_{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}'].iloc[0]
     }, index=[0]
     )
     results_df = pd.concat([results_df, new_result_df], axis=0, ignore_index=False).dropna(subset=['run_id']).reset_index(drop=True)
@@ -93,45 +173,45 @@ def append_results(results_df, output_fp, run_id, dataset, model, template, iter
     utils.to_excel(results_df, output_fp, False, 'results')     
 
 
-def run_eval_loop(df, runner, output_data_folder, eval_func_to_rule_id_map, failed_eval_col='failed_evals', max_iter=3, capture_func=None):
+def run_eval_loop(df, self.incose_reviewer, output_data_folder, eval_func_to_rule_id_map, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']='failed_evals', max_iter=3, capture_func=None):
     # run evaluation algorithm
     for iter in range(max_iter):
-        proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
+        self.proj_logger.info(f'Entering: iter num {iter} of run_eval_loop')
         if iter > 0:
             df = pd.read_excel(f"{output_data_folder}/revised_df_iter_{iter-1}.xlsx")
-            df = df.dropna(subset=[runner.id_col])
-        df = df[[runner.id_col, f"{runner.id_col}_#"]]
-        proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
+            df = df.dropna(subset=[self.incose_reviewer.id_col])
+        df = df[[self.incose_reviewer.id_col, f"{self.incose_reviewer.id_col}_#"]]
+        self.proj_logger.info(f'Calling evaluations for iter num {iter} of run_eval_loop')
         # run evals on df
-        df = runner.run_eval_sequence(df, runner.id_col, failed_eval_col, None, eval_func_to_rule_id_map)
-        proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
+        df = self.incose_reviewer.run_eval_sequence(df, self.incose_reviewer.id_col, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL'], None, eval_func_to_rule_id_map)
+        self.proj_logger.info(f'Evaluations completed for iter num {iter} of run_eval_loop')
         if (df is not None):
             df = df.fillna('')
-            pass_cond = df[failed_eval_col].str.len() == 0
+            pass_cond = df[REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']].str.len() == 0
             pass_rows = df[pass_cond]
-            prior_revision_df = df.copy()[[f"{runner.id_col}_#", runner.id_col, failed_eval_col]]#, f"{failed_eval_col}_rule_ids"]]
-            renamed_columns = [f"{c}_prior_revision" for c in prior_revision_df.columns if c != f"{runner.id_col}_#"]
-            prior_revision_df.columns = [f"{runner.id_col}_#"] + renamed_columns
+            prior_revision_df = df.copy()[[f"{self.incose_reviewer.id_col}_#", self.incose_reviewer.id_col, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']]]#, f"{REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']}_rule_ids"]]
+            renamed_columns = [f"{c}_prior_revision" for c in prior_revision_df.columns if c != f"{self.incose_reviewer.id_col}_#"]
+            prior_revision_df.columns = [f"{self.incose_reviewer.id_col}_#"] + renamed_columns
             if len(pass_rows) > 0:
-                proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
+                self.proj_logger.info(f'{len(pass_rows)}/{len(df)} Requirements passed all criteria during iter num {iter} of run_eval_loop')
                 df = df[~pass_cond]
             if len(df) > 0:
-                proj_logger.info(f'{len(df)} Requirements still require evaluation')
+                self.proj_logger.info(f'{len(df)} Requirements still require evaluation')
                 # run prompts for requirements containing failed evals
-                evals_lists = list(df[failed_eval_col].values)
-                args_lists = list(df[runner.id_col].values)
+                evals_lists = list(df[REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL']].values)
+                args_lists = list(df[self.incose_reviewer.id_col].values)
                 # run revision prompts
-                revised_df = runner.revise(evals_lists, args_lists, capture_func)
+                revised_df = self.incose_reviewer.revise(evals_lists, args_lists, capture_func)
                 revised_df['revision'] = iter + 1
                 revised_df.index = df.index
-                revised_df = revised_df.reset_index().rename(columns={'index':f"{runner.id_col}_#"})
+                revised_df = revised_df.reset_index().rename(columns={'index':f"{self.incose_reviewer.id_col}_#"})
                 revised_df = pd.merge(
-                    left=revised_df, right=prior_revision_df, on=f"{runner.id_col}_#", how='inner'
+                    left=revised_df, right=prior_revision_df, on=f"{self.incose_reviewer.id_col}_#", how='inner'
                 )
                 # if any output from ai is blank, then use the previous revision
-                revised_df[runner.id_col] = revised_df[runner.id_col].fillna(prior_revision_df[f"{runner.id_col}_prior_revision"]) 
+                revised_df[self.incose_reviewer.id_col] = revised_df[self.incose_reviewer.id_col].fillna(prior_revision_df[f"{self.incose_reviewer.id_col}_prior_revision"]) 
                 utils.to_excel(revised_df, output_data_folder, str(iter), 'revised_df_iter')
-            proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
+            self.proj_logger.info(f'Exiting: iter num: {iter} of run_eval_loop')
 
 
 @get_logs(src.BASE_LOGGERNAME)

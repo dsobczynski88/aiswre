@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 from pprint import pformat
 import asyncio
+import nest_asyncio
 from tqdm import tqdm
 from langchain_core.runnables import (
     RunnableLambda,
@@ -20,6 +21,7 @@ import src.components.prompteval as pe
 from src.components.promptrunner import PromptRunner
 from src.components.preprocess import TextPreprocessor, Sectionalize, BuildTemplates
 
+nest_asyncio.apply()
 
 class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
 
@@ -79,62 +81,15 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.remove_bracketed_text()
         self.clean_incose_examples()
         return self
-    
 
-
-class BuildIncoseEvalConfig:
-    
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseEvalConfig"
-    
-    def __init__(self, incose_guide_df: pd.DataFrame, rule_to_eval_map: dict, rule_num_col='rule_number'): #base_messages: dict):
-        
-        self.incose_guide_df = incose_guide_df
-        self.rule_num_col = rule_num_col
-        self.rule_to_eval_map = rule_to_eval_map
-        self.evals_config = {}
-        self.load_evals_config()
-        #self.output_func = base_messages['func']
-        BuildIncoseEvalConfig.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
-        incose_guide_sections_df = self.incose_guide_df
-        utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
-    
-    @staticmethod
-    @get_logs(src.BASE_LOGGERNAME)
-    def write_text(fp: Path, mode: str, data: dict):
-        with open(fp, mode) as f:
-            f.write(data)
-    
-    @get_logs(src.BASE_LOGGERNAME)
-    def load_evals_config(self):
-        '''load evaluations configuration'''
-        for _rule, _evalname in rule_to_eval_map.items():
-            self.evals_config[_evalname] = {}
-            self.evals_config[_evalname]["func"] = getattr(pe, _evalname) 
-            self.evals_config[_evalname]["template"] = self.templates[_rule]
-        return self.evals_config
 
 class BuildIncoseTemplates(BuildTemplates):
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
-
-    #EVAL_FUNC_MAPPING = [
-    #    ('eval_is_in_passive_voice', pe.eval_is_in_passive_voice,'R2'),
-    #    ('eval_if_vague_verb', pe.eval_if_vague_verb,'R3'),
-    #    ('eval_has_vague_terms', pe.eval_has_vague_terms,'R7'),
-    #    ('eval_has_escape_clause', pe.eval_has_escape_clause,'R8'),
-    #    ('eval_has_open_end_clause', pe.eval_has_open_end_clause, 'R9'),
-    #    ('eval_has_superfl_inf', pe.eval_has_superfl_inf, 'R10'),
-    #    ('eval_has_combinators', pe.eval_has_combinators, 'R19')
-    #]
-
-    #EVAL_TO_RULE_MAPPING = {}
-    #for t in EVAL_FUNC_MAPPING:
-    #    EVAL_TO_RULE_MAPPING[t[0]] = t[2]
-    
+ 
     def __init__(self, df, base_messages, output_data_folder_path):
         super().__init__(df, base_messages)
         self.output_data_folder_path = output_data_folder_path
-        self.evals_config = {}
         self.add_message_col_to_frame("system")
         self.add_message_col_to_frame("user")
         # replace relevant template variables with INCOSE data (e.g., definition, examples)
@@ -146,28 +101,38 @@ class BuildIncoseTemplates(BuildTemplates):
             user_message_colname='user_message',
             template_name_prefix='R'
         )
-        #self.load_evals_config()
-        #self.output_func = base_messages['func']
-        #BuildIncoseTemplates.write_text(Path(self.output_data_folder_path)/"evals_config.txt", "w", pformat(self.evals_config))
-        #incose_guide_sections_df = self.df
-        #utils.to_excel(incose_guide_sections_df, self.output_data_folder_path, False, 'incose_guide_sections_df')
-        
+
+class BuildIncoseEvalConfig:
     
-    #@get_logs(src.BASE_LOGGERNAME)
-    #def load_evals_config(self):
-    #    '''load evaluations configuration'''
-    #    for _eval in BuildIncoseTemplates.EVAL_FUNC_MAPPING:
-    #        self.evals_config[_eval[0]] = {}
-    #        self.evals_config[_eval[0]]["func"] = _eval[1]
-    #        self.evals_config[_eval[0]]["template"] = self.templates[_eval[2]]
-    #    return self.evals_config
-
-    #@staticmethod
-    #@get_logs(src.BASE_LOGGERNAME)
-    #def write_text(fp: Path, mode: str, data: dict):
-    #    with open(fp, mode) as f:
-    #        f.write(data)
-
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseEvalConfig"
+    
+    def __init__(self, incose_guide_df: pd.DataFrame, output_data_folder_path: str, templates, rule_to_eval_map: dict, rule_num_col='rule_number'): #base_messages: dict):
+        
+        self.incose_guide_df = incose_guide_df
+        self.rule_num_col = rule_num_col
+        self.rule_to_eval_map = rule_to_eval_map
+        self.templates = templates
+        self.evals_config={}
+        self.load_evals_config()
+        self.output_data_folder = output_data_folder_path
+        #self.output_func = base_messages['func']
+        BuildIncoseEvalConfig.write_text(Path(self.output_data_folder)/"evals_config.txt", "w", pformat(self.evals_config))
+        #incose_guide_sections_df = self.incose_guide_df
+        #utils.to_excel(incose_guide_sections_df, self.output_data_folder, False, 'incose_guide_sections_df')
+    
+    @staticmethod
+    @get_logs(src.BASE_LOGGERNAME)
+    def write_text(fp: Path, mode: str, data: dict):
+        with open(fp, mode) as f:
+            f.write(data)
+    
+    def load_evals_config(self):
+        '''load evaluations configuration'''
+        for _rule, _evalname in self.rule_to_eval_map.items():
+            self.evals_config[_evalname] = {}
+            self.evals_config[_evalname]["func"] = getattr(pe, _evalname) 
+            self.evals_config[_evalname]["template"] = self.templates[_rule]
+        return self.evals_config
 
 class IncoseRequirementReviewer(PromptRunner):
     """
@@ -193,7 +158,7 @@ class IncoseRequirementReviewer(PromptRunner):
 				to revise against a specific rule, and returns a final revision.
 	"""
 
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncosePromptRunner"
+    LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncoseRequirementReviewer"
         
     def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_config, id_col='Requirement'):
         super().__init__(use_structured_llm, llm, pydantic_model)
@@ -208,8 +173,9 @@ class IncoseRequirementReviewer(PromptRunner):
         results_df = self.cast_results_to_frame(results)
         return results_df
     
-    @get_logs(LOGGERNAME)
-    def assemble_eval_chain_list(self, evals_lists, capture_func):
+    #@get_logs(LOGGERNAME)
+    def assemble_eval_chain_list(self, evals_lists, capture_func=None):
+        print(evals_lists)
         for eval_list in evals_lists:
             print(f"Eval list: {eval_list}")
             row_chain = []
@@ -220,15 +186,16 @@ class IncoseRequirementReviewer(PromptRunner):
             self.evals_chains.append(composed_chain)
         return self.evals_chains
 
-    @get_logs(LOGGERNAME)
-    def assemble_chain_from_template(self, template, capture_func):
+    #@get_logs(LOGGERNAME)
+    def assemble_chain_from_template(self, template, capture_func=None):
+
         if capture_func is not None:
             chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content) | (capture_func)
         else:
             chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content)
         return chain
     
-    @get_logs(LOGGERNAME)
+    #@get_logs(LOGGERNAME)
     def cast_results_to_frame(self, results):
         """Casts the results returned by the LLM (e.g., via self.run_multiple_chains) to a dataframe
         
@@ -254,7 +221,7 @@ class IncoseRequirementReviewer(PromptRunner):
                 df[f"%_resolved_{col_suffix}_{c}"] = round(sum(df[f"if_resolved_{col_suffix}_{c}"]) / len(df[f"if_resolved_{col_suffix}_{c}"]) * 100, 0)
         return df
     
-    @get_logs(LOGGERNAME)
+    #@get_logs(LOGGERNAME)
     def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
         # run evals for each row of the dataframe
         for _index, _row in df.iterrows():
@@ -266,13 +233,13 @@ class IncoseRequirementReviewer(PromptRunner):
                 )
         return df
 
-    @get_logs(LOGGERNAME)
+    #@get_logs(LOGGERNAME)
     def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
         eval_cols = [c for c in df.columns if c.startswith("eval")]
         df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
         return df
     
-    @get_logs(LOGGERNAME)
+    #@get_logs(LOGGERNAME)
     def map_failed_evals_to_rule_ids(self, df: pd.DataFrame, eval_to_rule_map: dict) -> pd.DataFrame:
         df['failed_evals_rule_ids'] = df['failed_evals'].apply(lambda _l: map_A_to_B(_l, eval_to_rule_map) if type(_l) == list else None)
         return df

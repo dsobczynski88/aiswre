@@ -21,25 +21,38 @@ from src.components.workflow import BasicWorkflow
 
 if __name__ == "__main__":
 
+    config = utils.load_yaml('config.yaml')
+    if config is not None:
+        globals().update(config)
+    else:
+        raise
+    RUN_NAME = f"run-{utils.get_current_date_time()}"
+    OUTPUT_DATA_FOLDER = f"{FILE_LOCATIONS['MAIN_DATA_FOLDER']}/{RUN_NAME}"
+    Path(OUTPUT_DATA_FOLDER).mkdir(parents=True, exist_ok=True)
+    ProjectLogger(src.BASE_LOGGERNAME,f"{OUTPUT_DATA_FOLDER}/{src.BASE_LOGGERNAME}.log").config()
+    proj_logger = logging.getLogger(src.BASE_LOGGERNAME)
+
     wf = BasicWorkflow(
         config_file='config.yaml',
         data='src/data/demo_dataset.xlsx',
         model='llama3.1',
-        template='req-reviewer-instruct-1',
+        template='req-reviewer-instruct-2',
         iternum=2,
     )
     wf.load_config()
     wf.preprocess()
+    wf.load_requirements()
+    wf.revise_requirements()
+    wf.save_output()
 
     # print head of preprocessed incose guide
-    wf.incose_preprocessor.df.to_excel('df.xlsx')
-    print(wf.incose_preprocessor.df.head(5))
-    print(wf.incose_preprocessor.df.columns)
-    # print the R3 system message template
-    print(pformat(wf.incose_template_builder.templates['R3'].messages[0].prompt.template))
-
-    wf.revise()
-    wf.save_output()
+    #wf.incose_preprocessor.df.to_excel('df.xlsx')
+    #print(wf.incose_preprocessor.df.head(5))
+    #print(wf.incose_preprocessor.df.columns)
+    #print the R3 system message template
+    #print(pformat(wf.incose_template_builder.templates['R3'].messages[0].prompt.template))
+    #print(wf.incose_eval_config.evals_config)
+    
 
 
     """
