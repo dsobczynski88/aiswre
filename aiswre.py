@@ -1,6 +1,7 @@
 import sys
 import argparse
 import re
+from pprint import pformat
 from pathlib import Path
 import logging
 import pandas as pd
@@ -27,8 +28,17 @@ if __name__ == "__main__":
         template='req-reviewer-instruct-1',
         iternum=2,
     )
+    wf.load_config()
     wf.preprocess()
-    print(wf.incose_preprocessor.df.head())
+
+    # print head of preprocessed incose guide
+    print(wf.incose_preprocessor.df.head(5))
+    # print the R3 system message template
+    print(pformat(wf.incose_template_builder.templates['R3'].messages[0].prompt.template))
+
+    wf.revise()
+    wf.save_output()
+
 
     """
     # load yaml config

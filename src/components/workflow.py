@@ -35,20 +35,23 @@ class BasicWorkflow:
         self.incose_template_builder = None
         self.incose_reviewer = None
         self.base_template_messages = None
-
+        self.run_name = None
+        self.output_data_folder = None
+        
+    def load_config(self):
         # load config
-        config = utils.load_yaml('config.yaml')
+        config = utils.load_yaml(self.config_file)
         if config is not None:
             globals().update(config)
         else:
             raise
-
+    
+    def preprocess(self):
+        # preprocess the incose guide section 4
         self.run_name = f"run-{utils.get_current_date_time()}"
         self.output_data_folder = f"{FILE_LOCATIONS['MAIN_DATA_FOLDER']}/{self.run_name}"
         Path(self.output_data_folder).mkdir(parents=True, exist_ok=True) 
 
-    def preprocess(self):
-        
         self.incose_preprocessor = PreprocessIncoseGuide(
             INCOSE_GUIDE_SETTINGS['SECTIONS_REGEX_PAT']).preprocess_rules_section_4(
             inpath=Path(FILE_LOCATIONS['INCOSE_GUIDE']),
@@ -61,12 +64,17 @@ class BasicWorkflow:
         )
 
         self.base_template_messages = BASE_PROMPT_TEMPLATES[self.template]
-
-        #self.incose_template_builder = BuildIncoseTemplates(
-        #    df=self.incose_preprocessor.df,
-        #    base_messages=self.base_template_messages,
-        #    output_data_folder_path=self.output_data_folder
-        #)
+        self.incose_template_builder = BuildIncoseTemplates(
+            df=self.incose_preprocessor.df,
+            base_messages=self.base_template_messages,
+            output_data_folder_path=self.output_data_folder
+        )
+    
+    def revise(self):
+        pass
+    
+    def save_output(self):
+        pass
 
 """
 def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, failed_eval_col,reqs_df):
