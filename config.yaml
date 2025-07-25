@@ -13,7 +13,8 @@ INCOSE_GUIDE_SETTINGS:
     - '{'
     - '}'
   REPLACE_WITH: ' '
-  SUBPATTERNS: 'Guide to Writing Requirements \d+'
+  SUBPATTERNS: 
+    - 'Guide to Writing Requirements[\s\d]+'
 BASE_PROMPT_TEMPLATES:
   req-reviewer-instruct-1:
     name: 'req-reviewer-instruct-1'

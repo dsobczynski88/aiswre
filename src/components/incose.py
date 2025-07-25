@@ -30,18 +30,18 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         TextPreprocessor.__init__(self)
 
     @get_logs(LOGGERNAME)
-    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)', _flags=None):
+    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)', _flags=re.DOTALL):
         self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
     @get_logs(LOGGERNAME)
-    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)', _flags=None):
+    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)', _flags=re.DOTALL):
         self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
     @get_logs(LOGGERNAME)
-    def get_incose_rule_number(self, pat=r'^(R\d+) –', _flags=None):
-        self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags))
+    def get_incose_rule_number(self, pat=r'^ (R\d+) –', _flags=re.DOTALL):
+        self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
         return self.df
     
     @get_logs(LOGGERNAME)
@@ -65,9 +65,8 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.save_text(outpath / "extract.txt")
         self._pipeline = [
             partial(self.replace, replace_tokens=replace_tokens, replace_with=replace_with),
-            #partial(self.resub, pattern=subpatterns, replace_with=replace_with),
+            partial(self.resub, patterns=subpatterns, replace_with=replace_with),
             self.remove_multi_whitespace,
-
         ]
         self.text = self.clean_text(self.text)
         self.save_text(outpath / "extract-post-clean.txt")

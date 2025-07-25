@@ -200,7 +200,7 @@ class TextPreprocessor:
 
     @staticmethod
     @get_logs(LOGGERNAME)
-    def resub(_str: str, patterns: List[str], replace_with: str, _flags=None):
+    def resub(_str: str, patterns: List[str], replace_with: str, _flags=re.DOTALL):
         for pat in patterns:
             _str = re.sub(pat, replace_with, _str, flags=_flags)
         return _str

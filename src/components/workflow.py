@@ -69,7 +69,7 @@ class BasicWorkflow:
             base_messages=self.base_template_messages,
             output_data_folder_path=self.output_data_folder
         )
-    
+
     def revise(self):
         pass
     

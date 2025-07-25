@@ -32,7 +32,9 @@ if __name__ == "__main__":
     wf.preprocess()
 
     # print head of preprocessed incose guide
+    wf.incose_preprocessor.df.to_excel('df.xlsx')
     print(wf.incose_preprocessor.df.head(5))
+    print(wf.incose_preprocessor.df.columns)
     # print the R3 system message template
     print(pformat(wf.incose_template_builder.templates['R3'].messages[0].prompt.template))
 
