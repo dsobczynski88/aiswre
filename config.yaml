@@ -7,13 +7,13 @@ REQUIREMENTS_DATASET_SETTINGS:
   FAILED_EVAL_COL: 'failed_evals'
 
 INCOSE_GUIDE_SETTINGS:
-  SECTIONS_REGEX_PAT: r'([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
+  SECTIONS_REGEX_PAT: '([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
   REPLACE_TOKENS:
     - 'INCOSE-TP-2010-006-04| VERS/REV:4  |  1 July 2023'
     - '{'
     - '}'
   REPLACE_WITH: ' '
-
+  SUBPATTERNS: 'Guide to Writing Requirements \d+'
 BASE_PROMPT_TEMPLATES:
   req-reviewer-instruct-1:
     name: 'req-reviewer-instruct-1'

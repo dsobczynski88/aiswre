@@ -8,18 +8,29 @@ from dotenv import dotenv_values
 from tqdm import tqdm
 import asyncio
 import nest_asyncio
-from langchain_openai import ChatOpenAI
+#from langchain_openai import ChatOpenAI
 import src
 from src.prj_logger import ProjectLogger, get_logs
 from src import utils
-import src.components.workflow as wf
-import src.components.preprocess as pp
-from src.components.incose import PreprocessIncoseGuide, BuildIncoseTemplates, IncoseRequirementReviewer
-from src.components import prompteval as pe
+from src.components.workflow import BasicWorkflow
+#import src.components.preprocess as pp
+#from src.components.incose import PreprocessIncoseGuide, BuildIncoseTemplates, IncoseRequirementReviewer
+#from src.components import prompteval as pe
 
 
 if __name__ == "__main__":
 
+    wf = BasicWorkflow(
+        config_file='config.yaml',
+        data='src/data/demo_dataset.xlsx',
+        model='llama3.1',
+        template='req-reviewer-instruct-1',
+        iternum=2,
+    )
+    wf.preprocess()
+    print(wf.incose_preprocessor.df.head())
+
+    """
     # load yaml config
     config = utils.load_yaml('config.yaml')
     if config is not None:
@@ -134,3 +145,4 @@ if __name__ == "__main__":
     reqs_df = incose_reviewer.run_eval_sequence(reqs_df, f"Revised_{incose_reviewer.id_col}", REQUIREMENTS_DATASET_SETTINGS['REQ_COLNAME'], 'final', None)
     utils.to_excel(reqs_df, OUTPUT_DATA_FOLDER, False, 'reqs_df_with_revisions')
     wf.append_results(results_df, FILE_LOCATIONS['MAIN_DATA_FOLDER'], RUN_NAME, DATASET_FILE_PATH, LLM_MODEL_NAME, SELECTED_BASE_TEMPLATE_NAME, MAX_NUM_ITER, REQUIREMENTS_DATASET_SETTINGS['FAILED_EVAL_COL'], reqs_df)
+    """

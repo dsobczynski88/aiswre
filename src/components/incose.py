@@ -1,6 +1,6 @@
 from typing import List, Callable, Union
 import re
-from itertools import partial
+from functools import partial
 from pathlib import Path
 import pandas as pd
 from pprint import pformat
@@ -65,7 +65,7 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.save_text(outpath / "extract.txt")
         self._pipeline = [
             partial(self.replace, replace_tokens=replace_tokens, replace_with=replace_with),
-            partial(self.resub, pattern=subpatterns, replace_with=replace_with),
+            #partial(self.resub, pattern=subpatterns, replace_with=replace_with),
             self.remove_multi_whitespace,
 
         ]
@@ -87,7 +87,7 @@ class BuildIncoseEvalConfig:
     
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseEvalConfig"
     
-    def __init__(self, incose_guide_df: pd.DataFrame, rule_num_col='rule_number',rule_to_eval_map: dict) #base_messages: dict):
+    def __init__(self, incose_guide_df: pd.DataFrame, rule_to_eval_map: dict, rule_num_col='rule_number'): #base_messages: dict):
         
         self.incose_guide_df = incose_guide_df
         self.rule_num_col = rule_num_col
@@ -128,9 +128,9 @@ class BuildIncoseTemplates(BuildTemplates):
     #    ('eval_has_combinators', pe.eval_has_combinators, 'R19')
     #]
 
-    EVAL_TO_RULE_MAPPING = {}
-    for t in EVAL_FUNC_MAPPING:
-        EVAL_TO_RULE_MAPPING[t[0]] = t[2]
+    #EVAL_TO_RULE_MAPPING = {}
+    #for t in EVAL_FUNC_MAPPING:
+    #    EVAL_TO_RULE_MAPPING[t[0]] = t[2]
     
     def __init__(self, df, base_messages, output_data_folder_path):
         super().__init__(df, base_messages)

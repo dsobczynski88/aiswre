@@ -3,7 +3,6 @@ from pathlib import Path
 import pandas as pd
 import src
 from src import utils
-from src.components.incose import 
 from src.prj_logger import get_logs
 from src.components.incose import (
     PreprocessIncoseGuide, 
@@ -23,9 +22,7 @@ class BasicWorkflow:
                  model: str,
                  template: str,
                  iternum: int,
-                 incose_preprocessor: PreprocessIncoseGuide, 
-                 incose_template_builder: BuildIncoseTemplates,
-                 incose_reviewer: IncoseRequirementReviewer):
+                 ):
         """
         ENTER DOCSTRING HERE
         """
@@ -34,17 +31,44 @@ class BasicWorkflow:
         self.model = model
         self.template = template
         self.iternum = iternum
-        self.incose_preprocessor = incose_preprocessor
-        self.incose_template_builder = incose_template_builder
-        self.incose_reviewer = incose_reviewer
+        self.incose_preprocessor = None
+        self.incose_template_builder = None
+        self.incose_reviewer = None
+        self.base_template_messages = None
 
+        # load config
+        config = utils.load_yaml('config.yaml')
+        if config is not None:
+            globals().update(config)
+        else:
+            raise
+
+        self.run_name = f"run-{utils.get_current_date_time()}"
+        self.output_data_folder = f"{FILE_LOCATIONS['MAIN_DATA_FOLDER']}/{self.run_name}"
+        Path(self.output_data_folder).mkdir(parents=True, exist_ok=True) 
 
     def preprocess(self):
         
+        self.incose_preprocessor = PreprocessIncoseGuide(
+            INCOSE_GUIDE_SETTINGS['SECTIONS_REGEX_PAT']).preprocess_rules_section_4(
+            inpath=Path(FILE_LOCATIONS['INCOSE_GUIDE']),
+            outpath=Path(self.output_data_folder),
+            start_page=65,
+            end_page=115,
+            replace_tokens=INCOSE_GUIDE_SETTINGS['REPLACE_TOKENS'],
+            subpatterns=INCOSE_GUIDE_SETTINGS['SUBPATTERNS'],
+            replace_with=INCOSE_GUIDE_SETTINGS['REPLACE_WITH']
+        )
 
+        self.base_template_messages = BASE_PROMPT_TEMPLATES[self.template]
 
+        #self.incose_template_builder = BuildIncoseTemplates(
+        #    df=self.incose_preprocessor.df,
+        #    base_messages=self.base_template_messages,
+        #    output_data_folder_path=self.output_data_folder
+        #)
 
-
+"""
 def append_results(results_df, output_fp, run_id, dataset, model, template, iternum, failed_eval_col,reqs_df):
     new_result_df = pd.DataFrame(data={
         'run_id': run_id,
@@ -125,3 +149,4 @@ def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement',
         left=reqs_df, right=revisions_df[[f'Revised_{requirement_col}',f'{requirement_col}_#']], on=f'{requirement_col}_#', how='left'
     )
     return reqs_df
+"""
