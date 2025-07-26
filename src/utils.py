@@ -53,6 +53,16 @@ def write_to_yaml(file_path, data):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+def load_config(config_file='config.yaml', update_globals=False):
+        # load config
+        config = load_yaml(config_file)
+        if config is not None:
+            if update_globals:
+                globals().update(config)
+            return config
+        else:
+            raise
+
 def get_current_date_time():
     # Get the current date and time
     now = datetime.now()
@@ -63,7 +73,12 @@ def get_current_date_time():
     formatted_time = now.strftime("%Y-%m-%d-%H-%M-%S")
     return formatted_time  
 
-@get_logs(src.BASE_LOGGERNAME)
+def make_output_directory(file_locations):
+    run_name = f"run-{get_current_date_time()}"
+    output_directory = f"{file_locations['MAIN_DATA_FOLDER']}/{run_name}"
+    Path(output_directory).mkdir(parents=True, exist_ok=True)
+    return output_directory
+
 def map_A_to_B(list_of_A:list, mapdict_AB:dict) -> list:
     """This function takes in a list (call as A) and a 
     dictionary who keys include elements of the list A. Using
@@ -77,7 +92,6 @@ def map_A_to_B(list_of_A:list, mapdict_AB:dict) -> list:
     """
     return [*map(mapdict_AB.get, list_of_A)]
 
-@get_logs(src.BASE_LOGGERNAME)
 def get_types_dict(df: pd.DataFrame) -> dict:
     """This function takes in a dataframe and gets the data type name of each column.
     For example, if the type of a specific column is a list, then the values of that 
@@ -103,7 +117,6 @@ def get_types_dict(df: pd.DataFrame) -> dict:
             continue
     return types_dict
 
-@get_logs(src.BASE_LOGGERNAME)
 def flatten_df_series_dict(df: pd.DataFrame, types_dict:dict) -> pd.DataFrame:
     """This function takes in a dataframe and a dictionary of type names. For 
     those columns of the dataframe of type 'dict', the Flatdict class is called
@@ -119,7 +132,6 @@ def flatten_df_series_dict(df: pd.DataFrame, types_dict:dict) -> pd.DataFrame:
             df[f'{column}_flat'] = df[column].apply(lambda s: flatdict.FlatDict(s, delimiter='.'))   
     return df
 
-@get_logs(src.BASE_LOGGERNAME)
 def flatten(df):
     df = flatten_df_series_dict(df, get_types_dict(df))
     dfs_to_add = []
@@ -129,7 +141,6 @@ def flatten(df):
     df = pd.concat([df] + dfs_to_add, axis=1)
     return df
 
-@get_logs(src.BASE_LOGGERNAME)
 def replace_null(df:pd.DataFrame, colname:str, replace_with:str) -> pd.DataFrame:
     """
     This function will take in a dataframe and a specific column name and 
@@ -144,7 +155,6 @@ def replace_null(df:pd.DataFrame, colname:str, replace_with:str) -> pd.DataFrame
     df.fillna({colname: replace_with}, inplace=True)
     return df
 
-@get_logs(src.BASE_LOGGERNAME) 
 def recast_str(_str:str, na_value=[]):
     """This function takes in a str and default value for errors or NaNs. The built-in
     python function eval() is applied on the input string in effort to cast the string
@@ -173,14 +183,13 @@ def recast_str(_str:str, na_value=[]):
         else:
             return casted
 
-@get_logs(src.BASE_LOGGERNAME)
+
 def to_excel(df, output_folder, _id, df_name):
     if _id:
         df.to_excel(f'{output_folder}/{df_name}_{_id}.xlsx')
     else:
         df.to_excel(f'{output_folder}/{df_name}.xlsx')
 
-@get_logs(src.BASE_LOGGERNAME)
 def generate_revisions_df(op: str, pat: str, requirement_col: str = 'Requirement', revision_number_col: str = 'revision'):
     directory = Path(op)
     matching_files = list(directory.rglob(pat))
@@ -195,7 +204,6 @@ def generate_revisions_df(op: str, pat: str, requirement_col: str = 'Requirement
     to_excel(revisions_df, op, False, 'revisions_df')
     return revisions_df
     
-@get_logs(src.BASE_LOGGERNAME)
 def merge_revisions_df(op, reqs_df, revisions_df, requirement_col='Requirement', revision_number_col='revision'):
     #merge latest revisions to original requirements dataframe
     revisions_df = revisions_df.sort_values(by=[f'{requirement_col}_#', revision_number_col], ascending=True).drop_duplicates(subset=[f'{requirement_col}_#'], keep='last').reset_index()

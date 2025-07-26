@@ -31,37 +31,37 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         Sectionalize.__init__(self, regex)
         TextPreprocessor.__init__(self)
 
-    @get_logs(LOGGERNAME)
+    
     def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)', _flags=re.DOTALL):
         self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
-    @get_logs(LOGGERNAME)
+    
     def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)', _flags=re.DOTALL):
         self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
-    @get_logs(LOGGERNAME)
+    
     def get_incose_rule_number(self, pat=r'^ (R\d+) –', _flags=re.DOTALL):
         self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
         return self.df
     
-    @get_logs(LOGGERNAME)
+    
     def get_incose_examples(self, pat=r'Examples:(.*)$', _flags=re.DOTALL):
         self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
         return self.df
 
-    @get_logs(LOGGERNAME)
-    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]', _flags=None):
+    
+    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]', _flags=re.DOTALL):
         self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
         return self.df
     
-    @get_logs(LOGGERNAME)
+    
     def clean_incose_examples(self, col='examples', pat=r'(Exceptions and relationships:.*)$', _flags=re.DOTALL):
         self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
         return self.df
     
-    @get_logs(LOGGERNAME)
+    
     def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, subpatterns, replace_with):
         self.get_pdf_text(inpath, start_page, end_page)
         self.save_text(outpath / "extract.txt")
@@ -121,7 +121,6 @@ class BuildIncoseEvalConfig:
         #utils.to_excel(incose_guide_sections_df, self.output_data_folder, False, 'incose_guide_sections_df')
     
     @staticmethod
-    @get_logs(src.BASE_LOGGERNAME)
     def write_text(fp: Path, mode: str, data: dict):
         with open(fp, mode) as f:
             f.write(data)
@@ -173,7 +172,7 @@ class IncoseRequirementReviewer(PromptRunner):
         results_df = self.cast_results_to_frame(results)
         return results_df
     
-    #@get_logs(LOGGERNAME)
+    
     def assemble_eval_chain_list(self, evals_lists, capture_func=None):
         print(evals_lists)
         for eval_list in evals_lists:
@@ -186,7 +185,6 @@ class IncoseRequirementReviewer(PromptRunner):
             self.evals_chains.append(composed_chain)
         return self.evals_chains
 
-    #@get_logs(LOGGERNAME)
     def assemble_chain_from_template(self, template, capture_func=None):
 
         if capture_func is not None:
@@ -195,7 +193,6 @@ class IncoseRequirementReviewer(PromptRunner):
             chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content)
         return chain
     
-    #@get_logs(LOGGERNAME)
     def cast_results_to_frame(self, results):
         """Casts the results returned by the LLM (e.g., via self.run_multiple_chains) to a dataframe
         
@@ -221,7 +218,7 @@ class IncoseRequirementReviewer(PromptRunner):
                 df[f"%_resolved_{col_suffix}_{c}"] = round(sum(df[f"if_resolved_{col_suffix}_{c}"]) / len(df[f"if_resolved_{col_suffix}_{c}"]) * 100, 0)
         return df
     
-    #@get_logs(LOGGERNAME)
+    
     def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
         # run evals for each row of the dataframe
         for _index, _row in df.iterrows():
@@ -233,13 +230,13 @@ class IncoseRequirementReviewer(PromptRunner):
                 )
         return df
 
-    #@get_logs(LOGGERNAME)
+    
     def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
         eval_cols = [c for c in df.columns if c.startswith("eval")]
         df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
         return df
     
-    #@get_logs(LOGGERNAME)
+    
     def map_failed_evals_to_rule_ids(self, df: pd.DataFrame, eval_to_rule_map: dict) -> pd.DataFrame:
         df['failed_evals_rule_ids'] = df['failed_evals'].apply(lambda _l: map_A_to_B(_l, eval_to_rule_map) if type(_l) == list else None)
         return df

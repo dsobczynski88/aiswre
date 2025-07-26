@@ -85,7 +85,7 @@ class PromptRunner:
     def logger(self):
         return self._logger
     
-    @get_logs(LOGGERNAME)
+
     async def run_multiple_chains(self, chains, args_lists):
         tasks=[]
         _inputs = zip(chains, args_lists)
@@ -101,7 +101,7 @@ class PromptRunner:
         self._logger.info('results fetched...')
         return results
     
-    @get_logs(LOGGERNAME)
+
     async def run_chain(self, chain, arg_list):
         if arg_list is not None:
             return await chain.ainvoke(arg_list)

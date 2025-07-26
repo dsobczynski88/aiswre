@@ -91,7 +91,7 @@ class Sectionalize:
     def logger(self):
         return self._logger
         
-    @get_logs(LOGGERNAME)
+
     def get_pdf_text(self, fp: Path, start_page:int=0, end_page:int=-1):
         doc = pymupdf.open(fp)
         if (start_page == 0) and (end_page == -1):
@@ -105,13 +105,13 @@ class Sectionalize:
         self.text = chr(12).join([page.get_text() for page in adj_doc])
         return self.text
 
-    @get_logs(LOGGERNAME)
+
     def get_sections_df(self):
         section_numbers = [{'start': m.start(1), 'end': m.end(1), 'match': m.group(1), 'full_match':m.group(0)} for m in list(re.finditer(self.regex,self.text))]
         self.df = pd.DataFrame(section_numbers)
         return self.df
     
-    @get_logs(LOGGERNAME)
+
     def add_section_text(self, match_start_col:str='start', match_end_col:str='end'):
         self.df[f'{match_start_col}_idx']=self.df[match_end_col].astype(int)
         self.df[f'{match_end_col}_idx']=self.df[match_start_col].astype(int).shift(-1).fillna(0)  
@@ -120,12 +120,12 @@ class Sectionalize:
         self.df['extract'] = self.df[[f'{match_start_col}_idx',f'{match_end_col}_idx']].apply(lambda i: self.text[int(i[0]):int(i[1]+1)], axis=1)
         return self.df
     
-    @get_logs(LOGGERNAME)
+    
     def save_text(self, op: Path):
         with open(op, "w", encoding="utf-8") as f:
             f.write(self.text)
 
-    @get_logs(LOGGERNAME)
+    
     def print_text(self, start_index=0, end_index=-1):
         if end_index != -1:
             print(self.text[start_index:(end_index+1)])
@@ -179,11 +179,11 @@ class TextPreprocessor:
     def pipeline(self, new_pipeline: List[Callable]):
         self._pipeline = new_pipeline
 
-    @get_logs(LOGGERNAME)
+    
     def clean_text(self, text: str) -> str:
         return reduce(lambda x, y: y(x), self._pipeline, text)
     
-    @get_logs(LOGGERNAME)
+    
     def clean_frame(self, df: pd.DataFrame, apply_to_cols: List[str]) -> pd.DataFrame:
         for acol in apply_to_cols:
             df = utils.replace_null(df, acol, ' ')
@@ -192,21 +192,21 @@ class TextPreprocessor:
         return df
 
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def replace(_str: str, replace_tokens: List[str], replace_with: str) -> str:
         for tok in replace_tokens:
             _str = _str.replace(tok, replace_with)
         return _str
 
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def resub(_str: str, patterns: List[str], replace_with: str, _flags=re.DOTALL):
         for pat in patterns:
             _str = re.sub(pat, replace_with, _str, flags=_flags)
         return _str
 
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def remove_multi_whitespace(_str: str) -> str:
         """Replace multiple space/tab/newline characters with a single space
         Args:
@@ -215,7 +215,7 @@ class TextPreprocessor:
         return re.sub(r'\s{1,}', ' ', _str)
  
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def make_lower(_str: str) -> str:
         """Make input text lowercase
         Args:
@@ -224,7 +224,7 @@ class TextPreprocessor:
         return _str.lower()
     
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def remove_stopwords(_str:str, STOP_WORDS: List[str]) -> str:
         """Remove stopwords from a given input string
         Args:
@@ -259,15 +259,15 @@ class BuildTemplates:
         self.base_messages = base_messages
         self.templates = {}
     
-    @get_logs(LOGGERNAME)
+    
     def add_message_col_to_frame(self, name):
         self.df[f"{name}_message"] = self.base_messages[name]
     
-    @get_logs(LOGGERNAME)
+    
     def replace_prompt_variable_from_frame(self, message_col, replace_col):
         self.df[message_col] = self.df[[message_col, replace_col]].apply(lambda l: l[0].replace("{"+replace_col+"}",l[1]), axis=1)
 
-    @get_logs(LOGGERNAME)
+    
     def assemble_templates_from_df(self, system_message_colname='system_message', user_message_colname='user_message', template_name_prefix='template'):
         '''Loop over dataframe to build a unique prompt template for each dataframe row'''
         for index, row in tqdm(self.df.iterrows()):
@@ -277,7 +277,7 @@ class BuildTemplates:
         return self.templates
 
     @staticmethod
-    @get_logs(LOGGERNAME)
+    
     def get_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:
         '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
         return ChatPromptTemplate.from_messages([
