@@ -101,7 +101,7 @@ class BasicWorkflow:
             evals_config=self.incose_eval_config.evals_config,
             id_col=self.config['REQUIREMENTS_DATASET_SETTINGS']['REQ_COLNAME']
         )
-        self.incose_reviewer.run_eval_sequence(self.reqs_df, 
+        self.reqs_df = self.incose_reviewer.run_eval_sequence(self.reqs_df, 
                                                f"{self.config['REQUIREMENTS_DATASET_SETTINGS']['REQ_COLNAME']}", 
                                                self.config['REQUIREMENTS_DATASET_SETTINGS']['FAILED_EVAL_COL'], 
                                                'initial', 
@@ -119,6 +119,7 @@ class BasicWorkflow:
 
     def save_output(self):
         utils.to_excel(self.reqs_df, self.output_data_folder, False, 'reqs_df_with_revisions')
+        print(self.reqs_df.columns)
         new_result_df = pd.DataFrame(data={
         'run_id': self.run_name,
         'dataset': self.data,
