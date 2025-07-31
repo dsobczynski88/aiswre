@@ -34,6 +34,7 @@ proj_logger = logging.getLogger(LOGGERNAME)
 
 
 def convert_bool_to_ohe(bool_result: bool) -> int:
+    """Convert input boolean to an integer"""
     if bool_result:
         return 1
     else:

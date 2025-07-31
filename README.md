@@ -1,20 +1,8 @@
-## Applying NLP and AI to improve quality of software requirement statements using INCOSE Guide to Writing Requirements
-
-
-### Introduction
-High-quality software requirements serve as the foundation for the successful execution of software projects, and properly articulating these requirements enables software to be developed in line with stakeholder expectations, budget, and timeline. Furthermore, downstream changes to requirements may result in increased development costs, delayed delivery, hotfixes, and dissatisfied customers. As such, software teams need to put careful thought into how these requirements are written and who has been included in the review process.
-
-Typically, software requirements are housed in a requirements management tool in the form of textual statements. Naturally, many aspects of high-quality requirements can only be realized by experts and cross-functional team members working on the project; however, there are best practice guidelines as described in the INCOSE Guide to Writing Requirements which, when followed, improve the quality (e.g., accuracy, concision, non-ambiguity, singularity, etc.) of the written requirement. Additionally, the INCOSE Guide is well-recognized in the field of systems engineering and thus trusted amongst industry experts.
-
 This project (titled `aiswre`) seeks to integrate the best practices described in the INCOSE Guide to Writing Requirements to enhance software requirement quality using NLP and AI. In this article specifically, a project using `langchain` is described which refines a given software requirement based on the rules described in Section 4 of the INCOSE Guide.
-
-### Overview of the INCOSE Guide to Writing Requirements
-
-The [INCOSE Guide](https://www.incose.org/docs/default-source/working-groups/requirements-wg/gtwr/incose_rwg_gtwr_v4_040423_final_drafts.pdf?sfvrsn=5c877fc7_2) is structured around a framework of principles aimed at ensuring high-quality requirements documentation. Section 4 of the Guide focuses on rules for individual need and requirement statements as well as for sets of needs and requirements. The focus of this project is on applying the rules to individual requirement statements. Each rule is described in detail with definitions, elaborations, and examples. Furthermore, syntactical patterns that exemplify these rules are detailed in Appendix C of the INCOSE Guide. A brief summary of the Section 4 rules is described in the below table.
 
 ### Overview of the `aiswre` project
 
-This project, `aiswre` intends to apply AI, NLP, and data science methodologies to improve the quality of software quality processes. The initial features of the project focus on using prompt engineering techniques to refine software requirements based on the rules described in the section **Overview of the INCOSE Guide to Writing Requirements**. This project was inspired by the desire to enhance the field of software quality with AI and system engineering best practices. Application of LLMs bear the opportunity to advance the field of requirements engineering as initial studies have shown promising results<sup>1,2</sup>.
+This project, `aiswre` intends to apply AI, NLP, and data science methodologies to improve the quality of software quality processes. The initial features of the project focus on using prompt engineering techniques to refine software requirements based on the rules described in section 4 of the [INCOSE Guide](https://www.incose.org/docs/default-source/working-groups/requirements-wg/gtwr/incose_rwg_gtwr_v4_040423_final_drafts.pdf?sfvrsn=5c877fc7_2). This project was inspired by the desire to enhance the field of software quality with AI and system engineering best practices. Application of LLMs bear the opportunity to advance the field of requirements engineering as initial studies have shown promising results<sup>1,2</sup>.
 
 ### Design description
 
@@ -24,49 +12,17 @@ This project leverages `langchain-openai` to build a software requirement refine
 
 |name         |description|
 |------------ |-----------|
-|aiswre         |This is the main script called when running the program. In addition to loading all configuration settings and input data, it contains the function `run_eval_loop`, which executes the requirement refinement process. Specifically, the function takes in a list of requirements, evaluates them using specific evaluation functions, and based on which criteria failed, runs tailored prompts designed to correct those specific failures. The algorithm is designed to run until all requirements have passed all criteria or the set number of maximum iterations has been met.|
-|preprocess   |Contains the base `TextPreprocessor` class used to clean the extracted text. Additionally, the `Sectionalize` class is used to split PDFs into specific sections and extract specific subsections of the INCOSE Guide. This module also contains the base `BuildTemplates` class to create prompts and templates from a dataframe structure that is convenient for the purposes of this project. The classes `BuildIncoseTemplates` and `PreprocessIncoseGuide` are tailored to perform preprocessing and template creation specific for this project; for example, one of the methods of `BuildIncoseTemplates` is  `load_evaluation_config`, which returns a dictionary linking prompt templates (based on INCOSE Section 4 rules) with specific evaluation functions. This allows the application to know which prompts correspond to specific failed evaluations.|
-|promptrunner |Contains the base `PromptRunner` class and the child class `IncosePromptRunner`, which contains the methods to build and run chains asynchronously based on requirements' failed evaluations. Specifically, the method `run_multiple_chains` accepts a list of chains (e.g., langchain Runnable) and a list of arguments where each element of the list is a requirement. However, prompts could be constructed with multiple arguments. In the prompts defined here, the only input to the prompt at runtime is the requirement. The first element in the chain arguments corresponds to the arguments of the first chain in the chains list and thus both these lists are of equal length. These chains and their respective arguments are run asynchronously when the `run_multiple_chains` method is called. The `IncosePromptRunner` class also contains methods to build the `RunnableSequence` objects, which comprise the chains as well as methods to assemble a `RunnableLambda`, which is used to feed a requirement to an LLM and parse the result (in this case, the revised version of the input requirement).|
+|aiswre       |This is the main script called when running the program. In addition to loading all configuration settings and input data, it contains the function `run_eval_loop`, which executes the requirement refinement process. Specifically, the function takes in a list of requirements, evaluates them using specific evaluation functions, and based on which criteria failed, runs tailored prompts designed to correct those specific failures. The algorithm is designed to run until all requirements have passed all criteria or the set number of maximum iterations has been met.|
+|workflow     |This module is a higher level abstraction of the classes contained within the module `incose` and is called in the main program script `aiswre`. The module contains the class `BasicWorkflow` which contains the following methods: `preprocess`, `load_requirements`, `revise_requirements`, and `save_output`. The `preprocess` method instantiates the `PreprocessIncoseGuide` class to prepare the incose guide for analysis. Next, templates are built using the preprocessed guide via instantiation of the `BuildIncoseTemplates` class. To appropriately tie the templates with specific evaluation functions, the `BuildIncoseEvalConfig` class is instantiated. The method `load_requirements` loads into memory the requirements dataset (Excel file) to be analyzed. The AI review occurs in method `revise_requirements` which calls the `run_eval_loop` function. This function is preceeded and followed by calling of the `run_eval_sequence` method from the `IncoseRequirementReviewer` class. The `run_eval_sequence` is called before and after `run_eval_loop` to capture metrics associated with how well the revision performed against known evaluation criteria (based on the INCOSE Guide). Lastly, the `save_output` method collects all intermediate outputs and saves them into a dedicated run folder. The `save_output` method also writes the results to `results.xlsx` which may be thought of as a "journal" of all results generated by running the program.|
+|incose       |Contains the `IncoseRequirementReviewer` class, which inherits from the base `PromptRunner` class. The `IncoseRequirementReviewer` method `revise` generates revisions of input requirements. The `revise` method takes in a list of failed evaluation function lists (`arg: eval_lists`),a list of requirement statements (`args: arg_lists`), and an optional capture function. The capture function is specified when a specific output is desired from the LLM response other than what is provided by the .content attribute. These `evals_list` and `capture_func` arguments are used to build the `RunnableSequence` objects (via the method `assemble_eval_chain_list`), which are then invoked asynchronously using the `arg_lists` as the prompt variable input. In the prompts defined here, the only input to the prompt at runtime is the requirement. The `revise` method returns the results of running the revisions for each requirement as a dataframe. This class also contains the `run_evals_sequence`, `call_evals`, and `get_failed_evals` methods. These methods operate on dataframes. The `call_evals` method evaluates a requirement statement across all functions from the `prompteval` module and if a requirement fails to meet the evaluation, a column with value 1 is generated. The `get_failed_evals` method will aggregate all columns with value 1 and return a list of the evaluation functions which failed for that particular requirement (e.g., row) of a dataframe. This module also contains the classes `BuildIncoseTemplates`, `PreprocessIncoseGuide`, and `BuildIncoseEvalConfig`. These methods are tailored to perform preprocessing and template creation specific for this project; for example, one of the methods of `BuildIncoseTemplates` is  `load_evaluation_config`, which returns a dictionary linking prompt templates (based on INCOSE Section 4 rules) with specific evaluation functions. This allows the application to know which prompts correspond to specific failed evaluations.|
+|preprocess   |Contains the base `TextPreprocessor` class used to clean the extracted text. Additionally, the `Sectionalize` class is used to split PDFs into specific sections and extract specific subsections of the INCOSE Guide. This module also contains the base `BuildTemplates` class to create prompts and templates from a dataframe structure that is convenient for the purposes of this project. These classes are inherited by `PreprocessIncoseGuide`.|
+|promptrunner |Contains the `PromptRunner` class that contains methods to build and run chains asynchronously. Specifically, the method `run_multiple_chains` accepts a list of chains (e.g., langchain Runnable) and a list of arguments where each element of the list is a requirement. However, prompts could be constructed with multiple arguments. . The first element in the chain arguments corresponds to the arguments of the first chain in the chains list and thus both these lists are of equal length. These chains and their respective arguments are run asynchronously when the `run_multiple_chains` method is called.|
 |prompteval   |Contains functions used to evaluate requirement quality based on INCOSE Guide to Writing Requirements|
 |prj_exception|Contains the `CustomException` class used to catch exceptions from project functions|
 |prj_logger   |Contains the `ProjectLogger` class used to configure the logger used for the project. Additionally, the decorator `get_logs` is used to log exceptions using `CustomException` and output runtime.|
-|prj_utils    |Contains a variety of functions used to manipulate dataframes and input/output data|
+|utils    |Contains a variety of functions used to manipulate dataframes and input/output data|
 
 **NOTE:** The folder `./src/data` houses all input and output data from the project.
-
-### Program workflow
-
-This section provides a synopsis of the workflow that occurs when running `aiswre`. This assumes the following base template is used to construct the rule-specific templates designed to revise requirements based on specific failed criteria.
-
-- **Load environment variables**
-	- This is where to store your OPENAI_API_KEY, for example.
-- **Load the dataset (e.g., dataframe containing software requirements)**
-	- For this project, a software requirements dataset from Kaggle will be explored [(See Requirements Dataset)](https://www.kaggle.com/datasets/iamsouvik/software-requirements-dataset).
-	- Each row of the loaded dataset (pandas dataframe) contains a unique software requirement in the column named *Requirement*.
-- **Configure logger**
-	- The logger is configured so that it can be used to log outputs from all program functions.
-- **Parse the INCOSE Guide to Writing Requirements**
-	- This step involves use of `regex` to parse specific subsections within each rule description in Section 4.
-	- A text preprocessing pipeline is also applied during this step.
-- **Build Requirement Evaluation Prompt Templates**
-	- Load the selected base template.
-	- The base template is a generic prompt template that is designed to generate a requirement revision based on a given set of criteria and examples.
-	- Using the selected base template, rule-specific information is used to populate the base template resulting in a tailored prompt for a specific INCOSE rule. For example, since there are 50 rules in Section 4, 50 unique prompts could be constructed from this base template.
-	- Once the prompt templates have been created per the selected base template, specific evaluation functions need to be associated with these prompts so that when the requirement fails a criterion associated with a specific rule, the appropriate prompt can be added to the evaluation sequence.
-	- The `evals_config` associates prompt templates (INCOSE rules) with specific evaluation criteria (functions) and is used as a key input for executing prompts for revising the requirements.
-- **Instantiate the `IncosePromptRunner` class**
-	- The `PromptRunner` instance accepts a large language model (LLM) and can accept pydantic output models for handling prompt responses.
-	- The method `assemble_eval_chain_list` takes in a list of evaluation function lists (see module `prompteval`) and the `evals_config` discussed earlier to generate a list of chains where each chain is of type `RunnableSequence`.
-	- Each element of a given `RunnableSequence` is a chain which takes in a requirement, passes it to an LLM, retrieves the content, and parses the result to obtain the revised requirement text.
-	- The number of failed evaluations for a specific requirement defines the number of elements comprising the `RunnableSequence` but all elements follow the mentioned workflow of revising a requirement.
-- **Run the requirement evaluation loop function `run_eval_loop`**
-	- The `run_eval_loop` method takes will evaluate a set of requirements for a predefined number of iterations or until all requirements have passed all imposed criteria.
-	- During each iteration of the algorithm, the current revision of requirements is loaded and evaluated per `call_evals`.
-	- Requirements that pass all criteria are popped from the dataframe as no further action is needed.
-	- Requirements that fail any criteria remain in the dataframe and are evaluated using the specific prompts design to address the specific criteria that was not met.
-- **Create the consolidated revisions and results output file**
-	- An output Excel file within the generated run folder is created containing the original requirement, its final revision, the result of the evaluation program and the total number of revisions created titled reqs_df_with_revisions.
-	- The settings associated with each run and the metric value for percent of requirements resolved (all evaluation criteria passed) is appended to the Excel file results.
 
 ### Getting started
 
@@ -85,8 +41,15 @@ This section provides a synopsis of the workflow that occurs when running `aiswr
 - Enter the following commands to install the code and dependencies:
 	- `python -m pip install -r requirements.txt`
 	- `python -m pip install -e .`
-- Enter the following command to run the program:
+- Fill out the config.yaml file or enter the following command to run the program:
 	- `python -m aiswre -d <reqs_filename> -m <openai_model> -t <base_prompt_template> -i <max_iter>`
+
+	|argument            |description                                                                                     |
+	|--------------------|------------------------------------------------------------------------------------------------|
+	|`--data` or `-d`    |The requirements dataset file name                                                              | 
+	|`--model` or `-m`   |The string name of the LLM model to be used for revising the requirements                       |
+	|`--template` or `-t`|The string name of the base template to be used, as defined in `config.yaml`                    | 
+	|`--iternum` or `-i` |The maximum number of iterations to be run during the evaluation loop function (`run_eval_loop`)|
 
 ### Example Demo
 
@@ -100,24 +63,17 @@ In this example, we will evaluate five (5) requirements from the Kaggle dataset.
 	5. The product shall be platform independent. The product shall enable access to any type of development environment and platform.
 
 - <u>Run the program.</u>
-	- Now that the requirement dataset has been defined, the program will be run to evaluate these requirements. Note that the program main script (`aiswre.py`) takes in four (4) required command-line arguments. In the command prompt enter:
-	```python 
-	python -m aiswre -d <path/to/dataset/> -m <model name> -t <template name> -i <num of maxiter>
-	``` 
-
-	|argument            |description                                                                                     |
-	|--------------------|------------------------------------------------------------------------------------------------|
-	|`--data` or `-d`    |The requirements dataset file name                                                              | 
-	|`--model` or `-m`   |The string name of the LLM model to be used for revising the requirements                       |
-	|`--template` or `-t`|The string name of the base template to be used, as defined in `preprocess.py`                  | 
-	|`--iternum` or `-i` |The maximum number of iterations to be run during the evaluation loop function (`run_eval_loop`)|
-
-- <u>Review the results.</u>
-	- To view the results of the program, open results.xlsx from the ./src/data folder. The results.xlsx will display the metric `%_resolved_final_failed_evals`, which captures the percentage of requirements that passed all evaluation criteria post LLM-assisted revisioning. For example, consider the case where this program has been run with the following input argument values:
+	- Now that the requirement dataset has been defined, the program will be run to evaluate these requirements. Note that the program main script (`aiswre.py`) takes in four (4) required command-line arguments. The following arguments are used for this example.
 	
-	|model           |template                 |iternum   |
-	|----------------|-------------------------|----------|
-	|gpt-4o-mini     |req-reviewer-instruct-2  |3         |
+	|model           |template                 |iternum   |dataset                   |
+	|----------------|-------------------------|----------|--------------------------|
+	|gpt-4o-mini     |req-reviewer-instruct-2  |3         |src/data/demo_dataset.xlsx|
+
+	- After executing the program, view the results in results.xlsx located in the ./src/data folder. The results.xlsx will display the metric `%_resolved_final_failed_evals`, which captures the percentage of requirements that passed all evaluation criteria post LLM-assisted revisioning.
+
+	
+- <u>Review the results.</u>
+	
 	
 	- For the above five (5) mentioned requirements, three (3) of the five (5) were revised such that all evaluation functions passed. The original and revised requirements for these cases are presented below:
 	**NOTE:** To view the revised requirement outputs, go to the generated run folder within ./src/data and open the file reqs_df_with_revisions.xlsx
@@ -132,16 +88,4 @@ In this example, we will evaluate five (5) requirements from the Kaggle dataset.
 
 At present, this work is structured in a deterministic way that limits its ability to improvise, and the use of more complex LCEL expressions and AI agents is a future area of exploration. In addition, a more in-depth exploration of prompt engineering offers potential for the application to yield more useful results. This same thought process applies to the evaluation functions to refine the extent to which outputs can be measured. An additional area is to perform a feedback study from industry experts on the results from the tool and compare this with an AI-enabled feedback study.
 
-The program itself will greatly benefit from usage of more advanced approaches in AI such as langgraph flows and agent frameworks. Furthermore, the work at best is designed for a handful of INCOSE rules and therefore are still in progress. To improve the robustness and utility of this work, there are opportunities to leverage more efficient design patterns, and this too is a subject of ongoing project activities. 
-
-### Thoughts and Acknowledgements
-
-I'd like to thank my colleagues who have encouraged me to pursue learning new skills and following through on ideas. In addition, I was able to develop this project with the help of countless articles from Medium and stackoverflow. Additionally, the Udemy course *The Complete Prompt Engineering for AI Bootcamp (2025)* has been extremely helpful. I am very thankful for the individuals who create and make available such resources.
- 
-A few comments about me: I am a software quality engineer who is passionate about designing creative ways to solve problems and continuously improve on standard ways of working. I find NLP and generative AI to be a remarkably exciting and interesting field, and I truly enjoy working "hands on" with this technology :sunglasses:. Future work also involves refining the methods to be more efficient and enhance readability through choice of data structure. Please send me comments on aspects that you found interesting and feedback on how it could be improved.
-
-### References
-
-1. A. Fantechi, S. Gnesi, L. Passaro and L. Semini, "Inconsistency Detection in Natural Language Requirements using ChatGPT: a Preliminary Evaluation," 2023 IEEE 31st International Requirements Engineering Conference (RE), Hannover, Germany, 2023, pp. 335-340, doi: 10.1109/RE57278.2023.00045.
-
-2. Frattini, Julian, et al. "NLP4RE Tools: Classification, Overview and Management." Handbook on Natural Language Processing for Requirements Engineering. Cham: Springer Nature Switzerland, 2025. 357-380.
+The program itself will greatly benefit from usage of more advanced approaches in AI such as langgraph flows and agent frameworks. Furthermore, the work at best is designed for a handful of INCOSE rules and therefore are still in progress. To improve the robustness and utility of this work, there are opportunities to leverage more efficient design patterns, and this too is a subject of ongoing project activities.

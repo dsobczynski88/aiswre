@@ -24,6 +24,18 @@ from src.components.preprocess import TextPreprocessor, Sectionalize, BuildTempl
 nest_asyncio.apply()
 
 class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
+    """
+    Class used to perform text preprocessing on the INCOSE Guide.
+
+    Attributes:
+        
+    Methods:
+        get_incose_definition(_str: str, pat: str, _flags: enum) -> str:
+            Extract the definition text from a specific rule's section in the INCOSE Guide
+        
+        get_incose_elaboration(_str: str, pat: str, _flags: enum) -> str:
+            Extract the elaboration text from a specific rule's section in the INCOSE Guide
+    """
 
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.PreprocessIncoseGuide"
 
@@ -45,7 +57,6 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
     def get_incose_rule_number(self, pat=r'^ (R\d+) –', _flags=re.DOTALL):
         self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
         return self.df
-    
     
     def get_incose_examples(self, pat=r'Examples:(.*)$', _flags=re.DOTALL):
         self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))

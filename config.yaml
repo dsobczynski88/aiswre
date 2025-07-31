@@ -2,6 +2,7 @@ FILE_LOCATIONS:
   MAIN_DATA_FOLDER: './src/data'
   INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
   DATASET_FILE_PATH: './src/data/demo_dataset.xlsx'
+
 REQUIREMENTS_DATASET_SETTINGS:
   REQ_COLNAME: 'Requirement'
   FAILED_EVAL_COL: 'failed_evals'
@@ -15,6 +16,7 @@ INCOSE_GUIDE_SETTINGS:
   REPLACE_WITH: ' '
   SUBPATTERNS: 
     - 'Guide to Writing Requirements[\s\d]+'
+
 BASE_PROMPT_TEMPLATES:
   req-reviewer-instruct-1:
     name: 'req-reviewer-instruct-1'
