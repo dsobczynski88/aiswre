@@ -16,38 +16,6 @@ from src import utils
 from pprint import pformat
 
 
-BASE_TEMPLATES = {
-        'req-reviewer-instruct-1': {
-            'name': 'req-reviewer-instruct-1',
-            'description': 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.',
-            'system': 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".',
-            'user': 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}',
-            'func': lambda x: ''.join(re.findall('Final Revision:(.*)',x))
-        },
-        'req-reviewer-instruct-2': {
-            'name': 'req-reviewer-instruct-2',
-            'description': 'Similar to req-reviewer-instruct-1; however, additional specification is provided to ensure the requirement does not become exceedingly lengthy.',
-            'system': 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
-            'user': 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}',
-            'func': None
-        },
-        'req-reviewer-instruct-3':{
-            'name': 'req-reviewer-instruct-2',
-            'description': 'Similar to req-reviewer-instruct-2; however, only the definition is provided in the prompt (no examples)',
-            'system': 'Step 1 - The user will hand over an evaluation Criteria and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Let\'s think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.',
-            'user': 'Criteria:\n{definition}\nRequirement:\n{req}',
-            'func': None
-        },
-        'req-evaluator-gen-1':{
-            'name': 'req-evaluator-gen-1',
-            'description': 'This template is designed to assess an input requirement holistically on Section 4 of the Guide. Specifically, the intent is to provide the definition and elaboration for various stated rules and have the prompt respond which rules the given requirement violates',
-            'system': '',
-            'user': '',
-            'func': None
-        }
-
-    }
-
 class Sectionalize:
     """
     A general class to load, split and process a pdf into specific sections as per a set regex pattern.
@@ -78,7 +46,6 @@ class Sectionalize:
     NOTES: Methods are decorated with @get_logs which logs the timing associated with method execution and 
         any incurred exceptions.   
     """
-
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.Sectionalize"
 
     def __init__(self, regex):
@@ -90,7 +57,6 @@ class Sectionalize:
     @property
     def logger(self):
         return self._logger
-        
 
     def get_pdf_text(self, fp: Path, start_page:int=0, end_page:int=-1):
         doc = pymupdf.open(fp)
@@ -105,12 +71,10 @@ class Sectionalize:
         self.text = chr(12).join([page.get_text() for page in adj_doc])
         return self.text
 
-
     def get_sections_df(self):
         section_numbers = [{'start': m.start(1), 'end': m.end(1), 'match': m.group(1), 'full_match':m.group(0)} for m in list(re.finditer(self.regex,self.text))]
         self.df = pd.DataFrame(section_numbers)
-        return self.df
-    
+        return self.df   
 
     def add_section_text(self, match_start_col:str='start', match_end_col:str='end'):
         self.df[f'{match_start_col}_idx']=self.df[match_end_col].astype(int)
@@ -120,18 +84,15 @@ class Sectionalize:
         self.df['extract'] = self.df[[f'{match_start_col}_idx',f'{match_end_col}_idx']].apply(lambda i: self.text[int(i[0]):int(i[1]+1)], axis=1)
         return self.df
     
-    
     def save_text(self, op: Path):
         with open(op, "w", encoding="utf-8") as f:
             f.write(self.text)
 
-    
     def print_text(self, start_index=0, end_index=-1):
         if end_index != -1:
             print(self.text[start_index:(end_index+1)])
         else:
             print(self.text[start_index:])
-
 
 class TextPreprocessor:
     """
@@ -178,11 +139,9 @@ class TextPreprocessor:
     @pipeline.setter
     def pipeline(self, new_pipeline: List[Callable]):
         self._pipeline = new_pipeline
-
     
     def clean_text(self, text: str) -> str:
         return reduce(lambda x, y: y(x), self._pipeline, text)
-    
     
     def clean_frame(self, df: pd.DataFrame, apply_to_cols: List[str]) -> pd.DataFrame:
         for acol in apply_to_cols:
@@ -192,21 +151,18 @@ class TextPreprocessor:
         return df
 
     @staticmethod
-    
     def replace(_str: str, replace_tokens: List[str], replace_with: str) -> str:
         for tok in replace_tokens:
             _str = _str.replace(tok, replace_with)
         return _str
 
     @staticmethod
-    
     def resub(_str: str, patterns: List[str], replace_with: str, _flags=re.DOTALL):
         for pat in patterns:
             _str = re.sub(pat, replace_with, _str, flags=_flags)
         return _str
 
     @staticmethod
-    
     def remove_multi_whitespace(_str: str) -> str:
         """Replace multiple space/tab/newline characters with a single space
         Args:
@@ -215,7 +171,6 @@ class TextPreprocessor:
         return re.sub(r'\s{1,}', ' ', _str)
  
     @staticmethod
-    
     def make_lower(_str: str) -> str:
         """Make input text lowercase
         Args:
@@ -224,7 +179,6 @@ class TextPreprocessor:
         return _str.lower()
     
     @staticmethod
-    
     def remove_stopwords(_str:str, STOP_WORDS: List[str]) -> str:
         """Remove stopwords from a given input string
         Args:
@@ -250,8 +204,8 @@ class BuildTemplates:
             messages dictionary contains fields name and description which describe the prompt.
 
     Methods:
+        <To be completed>
     """
-
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildTemplates"
 
     def __init__(self, df, base_messages):
@@ -259,15 +213,12 @@ class BuildTemplates:
         self.base_messages = base_messages
         self.templates = {}
     
-    
     def add_message_col_to_frame(self, name):
         self.df[f"{name}_message"] = self.base_messages[name]
-    
     
     def replace_prompt_variable_from_frame(self, message_col, replace_col):
         self.df[message_col] = self.df[[message_col, replace_col]].apply(lambda l: l[0].replace("{"+replace_col+"}",l[1]), axis=1)
 
-    
     def assemble_templates_from_df(self, system_message_colname='system_message', user_message_colname='user_message', template_name_prefix='template'):
         '''Loop over dataframe to build a unique prompt template for each dataframe row'''
         for index, row in tqdm(self.df.iterrows()):
@@ -277,7 +228,6 @@ class BuildTemplates:
         return self.templates
 
     @staticmethod
-    
     def get_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:
         '''Create a ChatPromptTemplate given an input dictionary containing keys: system, user'''
         return ChatPromptTemplate.from_messages([
