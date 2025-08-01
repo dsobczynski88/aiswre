@@ -27,7 +27,10 @@ import re
 import logging
 import pandas as pd
 from tqdm import tqdm
+import nltk
 import src
+
+nltk.download('averaged_perceptron_tagger')
 
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
@@ -40,15 +43,32 @@ def convert_bool_to_ohe(bool_result: bool) -> int:
     else:
         return 0
 
-    
 def eval_is_in_passive_voice(text: str) -> bool:
     """
     R2: Criteria from 4.1.2 INCOSE Guide to Writing Requirements:
         check if text is written in passive voice
     """
-    'check for pattern shall + be + [main_verb]'
-    pass
-
+    be_forms = {"is", "are", "was", "were", "been", "be", "am", "'s", "'re", "'m"}
+    def check_for_passive_voice(tagged):
+        for i in range(len(tagged) - 1):
+            # Check if current word is a form of "to be"
+            if tagged[i][0] in be_forms:
+                # Check if next word is a past participle
+                if tagged[i+1][1] == 'VBN':
+                    # Check for optional "by" phrase
+                    if i+2 < len(tagged) and tagged[i+2][0] == 'by':
+                        return True
+                    # Even without "by", it could still be passive
+                    return True
+        return False
+        
+    sents = nltk.sent_tokenize(text)
+    for s in sents:
+        tokens = nltk.word_tokenize(s)
+        tagged = nltk.pos_tag(tokens)
+        if check_for_passive_voice(tagged):
+            return True
+    return False
 
 def eval_if_vague_verb(text: str) -> bool:
     """
