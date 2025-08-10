@@ -109,6 +109,10 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
         return self.df
 
+    def get_incose_rule_title(self, pat=r'^ R\d+ – ([A-Z\W]+) Definition', _flags=re.DOTALL):
+        self.df['rule_title'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
+        return self.df
+
     def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]', _flags=re.DOTALL):
         self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
         return self.df
@@ -134,6 +138,7 @@ class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
         self.get_sections_df()
         self.add_section_text()
         self.get_incose_rule_number()
+        self.get_incose_rule_title()
         self.get_incose_definition()
         self.get_incose_elaboration()
         self.get_incose_examples()
