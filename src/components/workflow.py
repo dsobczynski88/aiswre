@@ -39,18 +39,12 @@ class BasicWorkflow:
     """
     LOGGERNAME = f"{src.BASE_LOGGERNAME}.workflow"
     
-    def __init__(self,
-                 config: dict,
-                 data: str,
-                 model: str,
-                 template: str,
-                 iternum: int,
-                 ):
+    def __init__(self, config: dict):
         self.config = config
-        self.data = data
-        self.model = model
-        self.template = template
-        self.iternum = iternum
+        self.data=self.config['FILE_LOCATIONS']['DATASET_FILE_PATH']
+        self.model=self.config['MODEL']
+        self.template=self.config['SELECTED_BASE_TEMPLATE']
+        self.iternum=self.config['ITERNUM']
         self.incose_preprocessor = None
         self.incose_template_builder = None
         self.incose_reviewer = None
@@ -78,6 +72,10 @@ class BasicWorkflow:
             subpatterns=self.config['INCOSE_GUIDE_SETTINGS']['SUBPATTERNS'],
             replace_with=self.config['INCOSE_GUIDE_SETTINGS']['REPLACE_WITH']
         )
+        #print(self.config['BASE_PROMPT_TEMPLATES'])
+        #print(self.template)
+        #print(type(self.template))
+        #print(self.template[0])
         self.base_template_messages = self.config['BASE_PROMPT_TEMPLATES'][self.template]
         self.incose_template_builder = BuildIncoseTemplates(
             df=self.incose_preprocessor.df,

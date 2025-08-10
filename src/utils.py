@@ -8,16 +8,31 @@ import src
 from src.prj_logger import get_logs
 
 
-def load_yaml(file_path):
+def yaml_loader(config_file='config.yml'):
     """
     Load a YAML file and return the contents.
 
     Parameters:
-    file_path (str): The path to the YAML file.
+        config_file (str): String path to config file
 
     Returns:
-    dict: The contents of the YAML file as a dictionary.
+        dict: The contents of the YAML file as a dictionary.
     """
+    try:
+        with open(config_file, 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        return None
+        
+def yaml_writer(yaml_data, output_file='config.yml', sort_keys=False, indent=2):
+    try:
+        with open(output_file, 'w') as f:
+            yaml.dump(yaml_data, f, sort_keys=sort_keys, indent=2)
+    except FileNotFoundError:
+        return None
+
+def load_yaml(file_path):
+
     with open(file_path, 'r') as file:
         try:
             data = yaml.safe_load(file)
@@ -55,7 +70,7 @@ def write_to_yaml(file_path, data):
 
 def load_config(config_file='config.yaml', update_globals=False):
         # load config
-        config = load_yaml(config_file)
+        config = yaml_loader(config_file)
         if config is not None:
             if update_globals:
                 globals().update(config)

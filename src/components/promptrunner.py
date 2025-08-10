@@ -35,6 +35,7 @@ from typing import List, Union, Callable, Tuple, Optional
 import asyncio
 from pathlib import Path
 import pandas as pd
+from tqdm.asyncio import tqdm_asyncio
 from tqdm import tqdm
 from langchain_core.runnables import (
     RunnableLambda,
@@ -85,7 +86,6 @@ class PromptRunner:
     def logger(self):
         return self._logger
     
-
     async def run_multiple_chains(self, chains, args_lists):
         tasks=[]
         _inputs = zip(chains, args_lists)
@@ -97,7 +97,7 @@ class PromptRunner:
             else:
                 tasks.append(self.run_chain(chain, None))
         self._logger.info('awaiting results...')
-        results = await asyncio.gather(*tasks)
+        results = await tqdm_asyncio.gather(*tasks)
         self._logger.info('results fetched...')
         return results
     

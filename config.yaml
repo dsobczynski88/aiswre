@@ -1,16 +1,13 @@
 MODEL: 'llama3.1'
 SELECTED_BASE_TEMPLATE: 'req-reviewer-instruct-2'
-ITERNUM: 2
-
+ITERNUM: 1
 FILE_LOCATIONS:
   MAIN_DATA_FOLDER: './src/data'
   INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
   DATASET_FILE_PATH: './src/data/demo_dataset.xlsx'
-
 REQUIREMENTS_DATASET_SETTINGS:
   REQ_COLNAME: 'Requirement'
   FAILED_EVAL_COL: 'failed_evals'
-
 INCOSE_GUIDE_SETTINGS:
   SECTIONS_REGEX_PAT: '([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
   REPLACE_TOKENS:
@@ -20,7 +17,6 @@ INCOSE_GUIDE_SETTINGS:
   REPLACE_WITH: ' '
   SUBPATTERNS: 
     - 'Guide to Writing Requirements[\s\d]+'
-
 BASE_PROMPT_TEMPLATES:
   req-reviewer-instruct-1:
     name: 'req-reviewer-instruct-1'
@@ -46,7 +42,6 @@ BASE_PROMPT_TEMPLATES:
     system:
     user:
     func:
-
 PROMPT_EVALUTION_CONFIG:
   R2: 'eval_is_in_passive_voice'
   R3: 'eval_if_vague_verb'
@@ -55,5 +50,4 @@ PROMPT_EVALUTION_CONFIG:
   R9: 'eval_has_open_end_clause'
   R10: 'eval_has_superfl_inf'
   R19: 'eval_has_combinators' 
-
-EVALUATION_FUNCTION_MAP:
+EVALUATION_FUNCTION_MAP: none
