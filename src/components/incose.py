@@ -1,31 +1,8 @@
 """
-This module includes classes which are specifically designed to preprocess the INCOSE guide, build
-the requirement revision prompt templates, and run the prompts which perform the actual revision of the
-requirement. Specifically, the module contains the `IncoseRequirementReviewer` class, which inherits from the base `PromptRunner` class. 
-
-The `IncoseRequirementReviewer` method `revise` generates revisions of input requirements. 
-The `revise` method takes in a list of failed evaluation function lists (`arg: eval_lists`),
-a list of requirement statements (`args: arg_lists`), and an optional capture function. 
-The capture function is specified when a specific output is desired from the LLM response other 
-than what is provided by the .content attribute. These `evals_list` and `capture_func` arguments are 
-used to build the `RunnableSequence` objects (via the method `assemble_eval_chain_list`), 
-which are then invoked asynchronously using the `arg_lists` as the prompt variable input. 
-In the prompts defined here, the only input to the prompt at runtime is the requirement. 
-The `revise` method returns the results of running the revisions for each requirement as a dataframe. 
-This class also contains the `run_evals_sequence`, `call_evals`, and `get_failed_evals` methods. 
-These methods operate on dataframes. The `call_evals` method evaluates a requirement statement 
-across all functions from the `prompteval` module and if a requirement fails to meet the evaluation, 
-a column with value 1 is generated. The `get_failed_evals` method will aggregate all columns with 
-value 1 and return a list of the evaluation functions which failed for that particular requirement 
-(e.g., row) of a dataframe. This module also contains the classes `BuildIncoseTemplates`, 
-`PreprocessIncoseGuide`, and `BuildIncoseEvalConfig`.  
-
-These classes are tailored to perform preprocessing and template creation specific for this project; 
-for example, one of the methods of `BuildIncoseTemplates` is  `load_evaluation_config`, which returns 
-a dictionary linking prompt templates (based on INCOSE Section 4 rules) with specific evaluation 
-functions. This allows the application to know which prompts correspond to specific failed evaluations.
+This module includes functions specifically designed to preprocess the INCOSE guide, build
+requirement revision prompt templates, and run prompts for requirement revision.
 """
-from typing import List, Callable, Union
+from typing import List, Callable, Union, Dict, Optional, Any
 import re
 from functools import partial
 from pathlib import Path
@@ -50,272 +27,440 @@ from src.components.preprocess import TextPreprocessor, Sectionalize, BuildTempl
 
 nest_asyncio.apply()
 
-class PreprocessIncoseGuide(TextPreprocessor, Sectionalize):
+
+def preprocess_incose_guide(
+    input_path: Path, 
+    output_path: Path, 
+    start_page: int, 
+    end_page: int, 
+    regex: str,
+    replace_tokens: List[str], 
+    subpatterns: List[str], 
+    replace_with: str
+) -> pd.DataFrame:
     """
-    Class used to perform text preprocessing on the INCOSE Guide.
-
-    Attributes:
-        <To be completed>
-        
-    Methods:
-        get_incose_definition(pat: str, _flags: enum) -> str:
-            Extract the definition text from a specific rule's section in the INCOSE Guide
-        
-        get_incose_elaboration(pat: str, _flags: enum) -> str:
-            Extract the elaboration text from a specific rule's section in the INCOSE Guide
-        
-        get_incose_rule_number(pat: str, _flags: enum) -> str:
-            Extract the rule number from a given rule section in the INCOSE Guide
-        
-        remove_bracketed_text(col: str, pat: str, _flags: enum) -> str:
-            Remove brackets and text between them
-
-        get_incose_examples(pat: str, _flags: enum) -> str:
-            Extract the Examples from a given rule section in the INCOSE guide
-
-        clean_incose_examples(col: str, pat: str, _flags: enum) -> str:
-            Remove Exceptions and Relationships section from the examples if it exists.
-        
-        preprocess_rules_section_4(inpath: str, 
-                                   outpath: str, 
-                                   start_page: int, 
-                                   end_page: int, 
-                                   replace_tokens: List[str], 
-                                   subpatterns: List[str], 
-                                   replace_with: str
-                                  ):
-            Method which performs preprocessing beginning with filtering the
-                INCOSE guide pdf to only consist of Section 4, followed by
-                preprocessing the text, converting it into a dataframe, and
-                performing extraction of definitions, examples, etc. from 
-                each rule section on the dataframe-formatted Section 4 of the Guide.
-    """
-
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.PreprocessIncoseGuide"
-
-    def __init__(self, regex):
-        Sectionalize.__init__(self, regex)
-        TextPreprocessor.__init__(self)
-  
-    def get_incose_definition(self, pat=r'Definition:([\s\W\w]+)(?=Elaboration:)', _flags=re.DOTALL):
-        self.df['definition'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
-        return self.df
+    Preprocess the INCOSE guide PDF to extract and structure rule information.
     
-    def get_incose_elaboration(self, pat=r'Elaboration:([\s\W\w]+)(?=Examples:)', _flags=re.DOTALL):
-        self.df['elaboration'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
-        return self.df
-   
-    def get_incose_rule_number(self, pat=r'^ (R\d+) –', _flags=re.DOTALL):
-        self.df['rule_number'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
-        return self.df
-
-    def get_incose_rule_title(self, pat=r'^ R\d+ – ([A-Z\W]+) Definition', _flags=re.DOTALL):
-        self.df['rule_title'] = self.df['extract'].apply(lambda s: re.search(pat, s, flags=_flags).group(1))
-        return self.df
-
-    def remove_bracketed_text(self, col='examples', pat=r'\[[^\]]+\]', _flags=re.DOTALL):
-        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
-        return self.df
-
-    def get_incose_examples(self, pat=r'Examples:(.*)$', _flags=re.DOTALL):
-        self.df['examples'] = self.df['extract'].apply(lambda s: ''.join(re.findall(pat, s, flags=_flags)))
-        return self.df
- 
-    def clean_incose_examples(self, col='examples', pat=r'(Exceptions and relationships:.*)$', _flags=re.DOTALL):
-        self.df[col] = self.df[col].apply(lambda s: ''.join(re.sub(pat, '', s, flags=_flags)))
-        return self.df
+    Args:
+        input_path: Path to the INCOSE guide PDF
+        output_path: Directory to save processed files
+        start_page: First page to process
+        end_page: Last page to process
+        regex: Regular expression pattern to identify sections
+        replace_tokens: List of tokens to replace
+        subpatterns: List of regex patterns to substitute
+        replace_with: Replacement string for tokens and patterns
+        
+    Returns:
+        DataFrame containing structured INCOSE guide rules
+    """
+    # Create base objects using composition
+    sectionalize = Sectionalize(regex)
+    preprocessor = TextPreprocessor()
     
-    def preprocess_rules_section_4(self, inpath, outpath, start_page, end_page, replace_tokens, subpatterns, replace_with):
-        self.get_pdf_text(inpath, start_page, end_page)
-        self.save_text(outpath / "extract.txt")
-        self._pipeline = [
-            partial(self.replace, replace_tokens=replace_tokens, replace_with=replace_with),
-            partial(self.resub, patterns=subpatterns, replace_with=replace_with),
-            self.remove_multi_whitespace,
-        ]
-        self.text = self.clean_text(self.text)
-        self.save_text(outpath / "extract-post-clean.txt")
-        self.get_sections_df()
-        self.add_section_text()
-        self.get_incose_rule_number()
-        self.get_incose_rule_title()
-        self.get_incose_definition()
-        self.get_incose_elaboration()
-        self.get_incose_examples()
-        self.remove_bracketed_text()
-        self.clean_incose_examples()
-        return self
-
-
-class BuildIncoseTemplates(BuildTemplates):
-    """
-    Class used to build templates crafted using the INCOSE Guide Section 4. 
-
-    Attributes:
-        <To be completed>
-        
-    Methods:
-        <To be completed>
-        
-    """
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseTemplates"
- 
-    def __init__(self, df, base_messages, output_data_folder_path):
-        super().__init__(df, base_messages)
-        self.output_data_folder_path = output_data_folder_path
-        self.add_message_col_to_frame("system")
-        self.add_message_col_to_frame("user")
-        # replace relevant template variables with INCOSE data (e.g., definition, examples)
-        self.replace_prompt_variable_from_frame("user_message", "definition")
-        self.replace_prompt_variable_from_frame("user_message", "examples")
-        # build prompt templates based on incose rules
-        self.assemble_templates_from_df(
-            system_message_colname='system_message',
-            user_message_colname='user_message',
-            template_name_prefix='R'
-        )
-
-class BuildIncoseEvalConfig:
-    """
-    Class used to create a mapping object to tie specific evaluation functions to INCOSE
-        Section 4 Guide rules.
-
-    Attributes:
-        <To be completed>
-        
-    Methods:
-        <To be completed>
-        
-    """
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.BuildIncoseEvalConfig"
+    # Extract text from PDF
+    text = sectionalize.get_pdf_text(input_path, start_page, end_page)
     
-    def __init__(self, incose_guide_df: pd.DataFrame, output_data_folder_path: str, templates, rule_to_eval_map: dict, rule_num_col='rule_number'): #base_messages: dict):
-        
-        self.incose_guide_df = incose_guide_df
-        self.rule_num_col = rule_num_col
-        self.rule_to_eval_map = rule_to_eval_map
-        self.templates = templates
-        self.evals_config={}
-        self.load_evals_config()
-        self.output_data_folder = output_data_folder_path
-        #self.output_func = base_messages['func']
-        BuildIncoseEvalConfig.write_text(Path(self.output_data_folder)/"evals_config.txt", "w", pformat(self.evals_config))
-        #incose_guide_sections_df = self.incose_guide_df
-        #utils.to_excel(incose_guide_sections_df, self.output_data_folder, False, 'incose_guide_sections_df')
+    # Save raw extracted text
+    sectionalize.save_text(output_path / "extract.txt")
     
-    @staticmethod
-    def write_text(fp: Path, mode: str, data: dict):
-        with open(fp, mode) as f:
-            f.write(data)
+    # Set up preprocessing pipeline
+    preprocessor.pipeline = [
+        partial(TextPreprocessor.replace, replace_tokens=replace_tokens, replace_with=replace_with),
+        partial(TextPreprocessor.resub, patterns=subpatterns, replace_with=replace_with),
+        TextPreprocessor.remove_multi_whitespace,
+    ]
     
-    def load_evals_config(self):
-        '''load evaluations configuration'''
-        for _rule, _evalname in self.rule_to_eval_map.items():
-            self.evals_config[_evalname] = {}
-            self.evals_config[_evalname]["func"] = getattr(pe, _evalname) 
-            self.evals_config[_evalname]["template"] = self.templates[_rule]
-        return self.evals_config
+    # Apply preprocessing to text
+    sectionalize.text = preprocessor.clean_text(sectionalize.text)
+    
+    # Save cleaned text
+    sectionalize.save_text(output_path / "extract-post-clean.txt")
+    
+    # Extract sections
+    df = sectionalize.get_sections_df()
+    df = sectionalize.add_section_text()
+    
+    # Extract rule information
+    df = extract_incose_rule_info(df)
+    
+    return df
 
-class IncoseRequirementReviewer(PromptRunner):
+
+def extract_incose_rule_info(df: pd.DataFrame) -> pd.DataFrame:
     """
-	A class specifically to run custom prompts generated using INCOSE guide rules
-	
-    Attributes:
-		logger: python logging object
-		llm (ChatOpenAI): the large-language-model (LLM) to be used for prompting
-        templates (ChatPromptTemplate): prompt template which takes input requirement for revision 
-        evals_lists (List[List[str]]): contains the evaluation functions to be run 
-            for each requirement in the dataset
-        evals_config (dict): contains mapping between INCOSE templates and specific evaluation functions.
-        chains_lists (List[RunnableSequence]): list of RunnableSequences comprised of evaluation functions for each
-            requirement in the dataset.   
-	
-    Methods:    
-		assemble_eval_chain_list(self, ser_evals: List, evals: dict) -> List[RunnableSequence]:
-			Returns a list of chains where each chain is a RunnableSequence. Each sequence
-				is composed of an requirement revision prompt which is in itself a RunnableSequence
-		
-        assemble_chain_from_template(self, template: ChatPromptTemplate) -> RunnableSequence:
-			Returns a RunnableSequence which takes in an input requirement, a evaluation template 
-				to revise against a specific rule, and returns a final revision.
-	"""
-
-    LOGGERNAME = f"{src.BASE_LOGGERNAME}.IncoseRequirementReviewer"
+    Extract structured information from INCOSE guide sections.
+    
+    Args:
+        df: DataFrame with raw section text
         
-    def __init__(self, use_structured_llm: bool, llm, pydantic_model, templates, evals_config, id_col='Requirement'):
-        super().__init__(use_structured_llm, llm, pydantic_model)
+    Returns:
+        DataFrame with extracted rule components
+    """
+    # Extract rule number
+    df['rule_number'] = df['extract'].apply(
+        lambda s: re.search(r'^ (R\d+) –', s, flags=re.DOTALL).group(1) if re.search(r'^ (R\d+) –', s, flags=re.DOTALL) else None
+    )
+    
+    # Extract rule title
+    df['rule_title'] = df['extract'].apply(
+        lambda s: re.search(r'^ R\d+ – ([A-Z\W]+) Definition', s, flags=re.DOTALL).group(1) 
+        if re.search(r'^ R\d+ – ([A-Z\W]+) Definition', s, flags=re.DOTALL) else None
+    )
+    
+    # Extract definition
+    df['definition'] = df['extract'].apply(
+        lambda s: ''.join(re.findall(r'Definition:([\s\W\w]+)(?=Elaboration:)', s, flags=re.DOTALL))
+    )
+    
+    # Extract elaboration
+    df['elaboration'] = df['extract'].apply(
+        lambda s: ''.join(re.findall(r'Elaboration:([\s\W\w]+)(?=Examples:)', s, flags=re.DOTALL))
+    )
+    
+    # Extract examples
+    df['examples'] = df['extract'].apply(
+        lambda s: ''.join(re.findall(r'Examples:(.*)$', s, flags=re.DOTALL))
+    )
+    
+    # Clean examples - remove bracketed text
+    df['examples'] = df['examples'].apply(
+        lambda s: re.sub(r'\[[^\]]+\]', '', s, flags=re.DOTALL)
+    )
+    
+    # Clean examples - remove exceptions and relationships
+    df['examples'] = df['examples'].apply(
+        lambda s: re.sub(r'(Exceptions and relationships:.*)$', '', s, flags=re.DOTALL)
+    )
+    
+    return df
+
+
+def build_incose_templates(
+    incose_df: pd.DataFrame, 
+    base_messages: Dict[str, str], 
+    output_folder_path: Path
+) -> Dict[str, Any]:
+    """
+    Build prompt templates based on INCOSE guide rules.
+    
+    Args:
+        incose_df: DataFrame containing INCOSE guide rules
+        base_messages: Dictionary with base system and user message templates
+        output_folder_path: Path to save output files
+        
+    Returns:
+        Dictionary of templates keyed by rule number
+    """
+    # Create template builder
+    template_builder = BuildTemplates(incose_df, base_messages)
+    
+    # Add message columns to DataFrame
+    template_builder.add_message_col_to_frame("system")
+    template_builder.add_message_col_to_frame("user")
+    
+    # Replace template variables with INCOSE data
+    template_builder.replace_prompt_variables_from_frame("user_message", "definition")
+    template_builder.replace_prompt_variables_from_frame("user_message", "examples")
+    
+    # Build templates
+    templates = template_builder.assemble_templates_from_df(
+        system_message_col='system_message',
+        user_message_col='user_message',
+        template_name_prefix='R'
+    )
+    
+    return templates
+
+
+def build_incose_eval_config(
+    incose_df: pd.DataFrame, 
+    output_folder_path: Path, 
+    templates: Dict[str, Any], 
+    rule_to_eval_map: Dict[str, str],
+    rule_num_col: str = 'rule_number'
+) -> Dict[str, Dict]:
+    """
+    Create mapping between evaluation functions and INCOSE rules.
+    
+    Args:
+        incose_df: DataFrame containing INCOSE guide rules
+        output_folder_path: Path to save output files
+        templates: Dictionary of templates keyed by rule number
+        rule_to_eval_map: Mapping from rule IDs to evaluation function names
+        rule_num_col: Column name containing rule numbers
+        
+    Returns:
+        Dictionary mapping evaluation functions to templates and functions
+    """
+    # Create evaluation config
+    evals_config = {}
+    
+    # Map evaluation functions to templates
+    for rule, eval_name in rule_to_eval_map.items():
+        evals_config[eval_name] = {
+            "func": getattr(pe, eval_name),
+            "template": templates[rule]
+        }
+    
+    # Save config to file
+    with open(Path(output_folder_path) / "evals_config.txt", "w") as f:
+        f.write(pformat(evals_config))
+    
+    return evals_config
+
+
+class IncoseRequirementReviewer:
+    """
+    A class to run custom prompts generated using INCOSE guide rules.
+    
+    This class uses composition to leverage the PromptRunner functionality.
+    """
+    LOGGER_NAME = f"{src.BASE_LOGGERNAME}.IncoseRequirementReviewer"
+        
+    def __init__(
+        self, 
+        use_structured_llm: bool, 
+        llm, 
+        pydantic_model, 
+        templates: Dict[str, Any], 
+        evals_config: Dict[str, Dict], 
+        id_col: str = 'Requirement'
+    ):
+        """
+        Initialize the IncoseRequirementReviewer.
+        
+        Args:
+            use_structured_llm: Whether to use structured output from LLM
+            llm: Language model to use
+            pydantic_model: Model for structured output
+            templates: Dictionary of templates
+            evals_config: Configuration mapping evaluations to templates
+            id_col: Column name for requirement IDs
+        """
+        # Use composition instead of inheritance
+        self._prompt_runner = PromptRunner(use_structured_llm, llm, pydantic_model)
         self.templates = templates
         self.evals_config = evals_config
         self.evals_chains = []
         self.id_col = id_col
+        self._logger = logging.getLogger(self.LOGGER_NAME)
 
-    def revise(self, evals_lists, args_lists, capture_func):
+    def revise(
+        self, 
+        evals_lists: List[List[str]], 
+        args_lists: List[str], 
+        capture_func: Optional[Callable] = None
+    ) -> pd.DataFrame:
+        """
+        Revise requirements based on evaluation results.
+        
+        Args:
+            evals_lists: Lists of evaluation functions to run for each requirement
+            args_lists: Lists of requirement statements
+            capture_func: Optional function to extract specific output from LLM response
+            
+        Returns:
+            DataFrame with revision results
+        """
         self.assemble_eval_chain_list(evals_lists, capture_func)
-        results = asyncio.run(self.run_multiple_chains(self.evals_chains, args_lists))
+        results = asyncio.run(self._prompt_runner.run_multiple_chains(self.evals_chains, args_lists))
         results_df = self.cast_results_to_frame(results)
         return results_df
     
-    def assemble_eval_chain_list(self, evals_lists, capture_func=None):
-        print(evals_lists)
+    def assemble_eval_chain_list(
+        self, 
+        evals_lists: List[List[str]], 
+        capture_func: Optional[Callable] = None
+    ) -> List[RunnableSequence]:
+        """
+        Assemble chains of evaluation functions for each requirement.
+        
+        Args:
+            evals_lists: Lists of evaluation functions to run for each requirement
+            capture_func: Optional function to extract specific output from LLM response
+            
+        Returns:
+            List of runnable sequences
+        """
+        self.evals_chains = []
+        
         for eval_list in evals_lists:
-            print(f"Eval list: {eval_list}")
+            self._logger.info(f"Assembling chain for evaluations: {eval_list}")
             row_chain = []
-            for _eval in eval_list:
-                template = self.evals_config[_eval]["template"]
+            
+            for eval_name in eval_list:
+                template = self.evals_config[eval_name]["template"]
                 row_chain.append(self.assemble_chain_from_template(template, capture_func))
+            
             composed_chain = RunnableSequence(*row_chain)
             self.evals_chains.append(composed_chain)
+            
         return self.evals_chains
 
-    def assemble_chain_from_template(self, template, capture_func=None):
-
+    def assemble_chain_from_template(
+        self, 
+        template, 
+        capture_func: Optional[Callable] = None
+    ) -> RunnableSequence:
+        """
+        Create a chain from a template.
+        
+        Args:
+            template: Prompt template
+            capture_func: Optional function to extract specific output from LLM response
+            
+        Returns:
+            Runnable sequence
+        """
         if capture_func is not None:
-            chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content) | (capture_func)
+            chain = (
+                RunnableLambda(lambda x: {"req": x}) | 
+                template | 
+                self._prompt_runner.llm | 
+                (lambda x: x.content) | 
+                capture_func
+            )
         else:
-            chain = RunnableLambda(lambda x: {"req":x}) | template | self.llm | (lambda x: x.content)
+            chain = (
+                RunnableLambda(lambda x: {"req": x}) | 
+                template | 
+                self._prompt_runner.llm | 
+                (lambda x: x.content)
+            )
         return chain
     
-    def cast_results_to_frame(self, results):
-        """Casts the results returned by the LLM (e.g., via self.run_multiple_chains) to a dataframe
+    def cast_results_to_frame(self, results: List[str]) -> pd.DataFrame:
+        """
+        Convert LLM results to a DataFrame.
         
-        Arguments:
-            results (List[str]): Results returned by the LLM 
-            id_col (str): The column name in the dataframe containing the input requirement text which is to be evaluated using the runner.
+        Args:
+            results: Results returned by the LLM
+            
+        Returns:
+            DataFrame with results
         """
         results_df = pd.DataFrame(results)
-        results_df = results_df.rename(columns={0:self.id_col})
+        results_df = results_df.rename(columns={0: self.id_col})
         return results_df
     
-    def run_eval_sequence(self, df: pd.DataFrame, col: str, failed_eval_col: str, col_suffix: Union[str, None], eval_to_rule_map: Union[dict, None] = None):
-        self.call_evals(df, col)
-        self.get_failed_evals(df)
+    def run_eval_sequence(
+        self, 
+        df: pd.DataFrame, 
+        col: str, 
+        failed_eval_col: str, 
+        col_suffix: Optional[str] = None, 
+        eval_to_rule_map: Optional[Dict[str, str]] = None
+    ) -> pd.DataFrame:
+        """
+        Run evaluation sequence on requirements in a DataFrame.
+        
+        Args:
+            df: DataFrame containing requirements
+            col: Column containing requirement text
+            failed_eval_col: Column to store failed evaluations
+            col_suffix: Optional suffix for output columns
+            eval_to_rule_map: Optional mapping from evaluations to rules
+            
+        Returns:
+            DataFrame with evaluation results
+        """
+        # Call evaluations
+        df = self.call_evals(df, col)
+        
+        # Get failed evaluations
+        df = self.get_failed_evals(df)
+        
+        # Map failed evaluations to rule IDs if mapping provided
         if eval_to_rule_map is not None:
-            self.map_failed_evals_to_rule_ids(df, eval_to_rule_map)
+            df = self.map_failed_evals_to_rule_ids(df, eval_to_rule_map)
+        
+        # Drop intermediate evaluation columns
         df = df.drop(columns=[c for c in df.columns if c.startswith('eval')])
+        
+        # Add suffix to output columns if provided
         if col_suffix is not None:
             failed_eval_cols = [c for c in df.columns if c.startswith('failed_evals')]
+            
             for c in failed_eval_cols:
-                df.rename(columns={c:f"{col_suffix}_{c}"}, inplace=True)
-                df[f"if_resolved_{col_suffix}_{c}"] = df[f"{col_suffix}_{c}"].apply(lambda _l: 1 - int(bool(len(_l))))
-                df[f"%_resolved_{col_suffix}_{c}"] = round(sum(df[f"if_resolved_{col_suffix}_{c}"]) / len(df[f"if_resolved_{col_suffix}_{c}"]) * 100, 0)
+                # Rename column with suffix
+                df.rename(columns={c: f"{col_suffix}_{c}"}, inplace=True)
+                
+                # Add resolution indicator column
+                df[f"if_resolved_{col_suffix}_{c}"] = df[f"{col_suffix}_{c}"].apply(
+                    lambda _l: 1 - int(bool(len(_l)))
+                )
+                
+                # Add resolution percentage column
+                df[f"%_resolved_{col_suffix}_{c}"] = round(
+                    sum(df[f"if_resolved_{col_suffix}_{c}"]) / 
+                    len(df[f"if_resolved_{col_suffix}_{c}"]) * 100, 
+                    0
+                )
+        
         return df
     
     def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
-        # run evals for each row of the dataframe
-        for _index, _row in df.iterrows():
-            for key, value in self.evals_config.items():  # fix this line
-                eval_func_to_call = self.evals_config[key]["func"] 
-                eval_result = eval_func_to_call(_row[col])
-                df.loc[_index, key] = pe.convert_bool_to_ohe(
-                    eval_result
-                )
-        return df
+        """
+        Run evaluations for each row in the DataFrame.
+        
+        Args:
+            df: DataFrame containing requirements
+            col: Column containing requirement text
+            
+        Returns:
+            DataFrame with evaluation results
+        """
+        result_df = df.copy()
+        
+        # Run evaluations for each row
+        for idx, row in result_df.iterrows():
+            for eval_name, eval_config in self.evals_config.items():
+                eval_func = eval_config["func"]
+                eval_result = eval_func(row[col])
+                result_df.loc[idx, eval_name] = pe.convert_bool_to_ohe(eval_result)
+        
+        return result_df
     
     def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
-        eval_cols = [c for c in df.columns if c.startswith("eval")]
-        df['failed_evals'] = df[eval_cols].apply(lambda _l: [eval_cols[e[0]] for e in enumerate(_l) if e[1]==1.0], axis=1)
-        return df
+        """
+        Identify failed evaluations for each requirement.
+        
+        Args:
+            df: DataFrame with evaluation results
+            
+        Returns:
+            DataFrame with added 'failed_evals' column
+        """
+        result_df = df.copy()
+        eval_cols = [c for c in result_df.columns if c.startswith("eval")]
+        
+        result_df['failed_evals'] = result_df[eval_cols].apply(
+            lambda row: [eval_cols[i] for i, val in enumerate(row) if val == 1.0], 
+            axis=1
+        )
+        
+        return result_df
 
-    def map_failed_evals_to_rule_ids(self, df: pd.DataFrame, eval_to_rule_map: dict) -> pd.DataFrame:
-        df['failed_evals_rule_ids'] = df['failed_evals'].apply(lambda _l: map_A_to_B(_l, eval_to_rule_map) if type(_l) == list else None)
-        return df
+    def map_failed_evals_to_rule_ids(
+        self, 
+        df: pd.DataFrame, 
+        eval_to_rule_map: Dict[str, str]
+    ) -> pd.DataFrame:
+        """
+        Map failed evaluations to rule IDs.
+        
+        Args:
+            df: DataFrame with failed evaluations
+            eval_to_rule_map: Mapping from evaluation names to rule IDs
+            
+        Returns:
+            DataFrame with added 'failed_evals_rule_ids' column
+        """
+        result_df = df.copy()
+        
+        result_df['failed_evals_rule_ids'] = result_df['failed_evals'].apply(
+            lambda eval_list: map_A_to_B(eval_list, eval_to_rule_map) if isinstance(eval_list, list) else None
+        )
+        
+        return result_df
