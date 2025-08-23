@@ -4,7 +4,7 @@ ITERNUM: 1
 FILE_LOCATIONS:
   MAIN_DATA_FOLDER: './src/data'
   INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
-  DATASET_FILE_PATH: './src/data/demo_dataset.xlsx'
+  DATASET_FILE_PATH: './src/data/demo_dataset_2.xlsx'
 REQUIREMENTS_DATASET_SETTINGS:
   REQ_COLNAME: 'Requirement'
   FAILED_EVAL_COL: 'failed_evals'
