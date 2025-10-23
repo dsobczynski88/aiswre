@@ -1,12 +1,12 @@
 import re
 import logging
-from typing import List, Callable, Dict, Optional, Union
+from typing import List, Callable, Optional, Union
 from functools import partial, reduce
 from pathlib import Path
 import json
 import numpy as np
 import pandas as pd
-import pymupdf
+import fitz
 from tqdm import tqdm
 from langchain_core.prompts.chat import ChatPromptTemplate
 
@@ -44,20 +44,16 @@ class Sectionalize:
         Returns:
             Extracted text from the PDF
         """
-        doc = pymupdf.open(fp)
-        
-        # Handle page range selection
-        if start_page == 0 and end_page == -1:
-            pages = doc
-        elif start_page == 0 and end_page != -1:
-            pages = doc[:end_page]
-        elif start_page != 0 and end_page == -1:
-            pages = doc[(start_page-1):]
-        else:
-            pages = doc[(start_page-1):end_page]
-            
-        # Join pages with form feed character
-        self.text = chr(12).join([page.get_text() for page in pages])
+        doc = fitz.open(fp)
+        n_pages = doc.page_count
+
+        if end_page == -1 or end_page > n_pages:
+            end_page = n_pages
+
+        texts = [
+            doc.load_page(i).get_text() for i in range(start_page, end_page)
+        ]
+        self.text = chr(12).join(texts)
         return self.text
 
     def get_sections_df(self) -> pd.DataFrame:
@@ -84,7 +80,7 @@ class Sectionalize:
         self.df = pd.DataFrame(section_matches)
         return self.df   
 
-    def add_section_text(self, match_start_col: str = 'start', match_end_col: str = 'end') -> pd.DataFrame:
+    def add_section_text(self, match_start_col: str = 'start', match_end_col: str = 'end') -> Union[pd.DataFrame, None]:
         """
         Add extracted text between section boundaries to the DataFrame.
         
@@ -98,21 +94,21 @@ class Sectionalize:
         if self.df is None:
             self._logger.error("No sections DataFrame. Call get_sections_df() first.")
             raise ValueError("No sections DataFrame. Call get_sections_df() first.")
+
+        if self.text is not None:    
+            # Create index columns for extraction boundaries
+            start_idx_col = f'{match_start_col}_idx'
+            end_idx_col = f'{match_end_col}_idx'
             
-        # Create index columns for extraction boundaries
-        start_idx_col = f'{match_start_col}_idx'
-        end_idx_col = f'{match_end_col}_idx'
-        
-        # Set extraction boundaries
-        self.df[start_idx_col] = self.df[match_end_col].astype(int)
-        self.df[end_idx_col] = self.df[match_start_col].astype(int).shift(-1).fillna(len(self.text))
-        
-        # Extract text between boundaries
-        self.df['extract'] = self.df[[start_idx_col, end_idx_col]].apply(
-            lambda i: self.text[int(i[0]):int(i[1])], axis=1
-        )
-        
-        return self.df
+            # Set extraction boundaries
+            self.df[start_idx_col] = self.df[match_end_col].astype(int)
+            self.df[end_idx_col] = self.df[match_start_col].astype(int).shift(-1).fillna(len(self.text))
+            
+            # Extract text between boundaries
+            self.df['extract'] = self.df[[start_idx_col, end_idx_col]].apply(
+                lambda i: self.text[int(i[0]):int(i[1])], axis=1
+            )
+            return self.df
     
     def save_text(self, output_path: Path) -> None:
         """
@@ -212,7 +208,7 @@ class TextPreprocessor:
         Returns:
             DataFrame with processed text columns
         """
-        from reqtracer.utils import pd_utils  # Import here to avoid circular imports
+        from src import utils  # Import here to avoid circular imports
         
         result_df = df.copy()
         
@@ -222,7 +218,7 @@ class TextPreprocessor:
                 continue
                 
             # Handle null values and ensure string type
-            result_df = pd_utils.replace_null(result_df, col, ' ')
+            result_df = utils.replace_null(result_df, col, ' ')
             result_df[col] = result_df[col].astype(str)
             
             # Apply the cleaning pipeline
@@ -321,7 +317,7 @@ class BuildTemplates:
     """
     LOGGER_NAME = "projectlog.BuildTemplates"
 
-    def __init__(self, df: pd.DataFrame, base_messages: Dict[str, str]):
+    def __init__(self, df: Union[pd.DataFrame, None], base_messages: Union[dict[str, str], None]):
         """
         Initialize the BuildTemplates object.
         
@@ -329,7 +325,7 @@ class BuildTemplates:
             df: DataFrame containing values for template variables
             base_messages: Dictionary with system and user message templates
         """
-        self.df = df.copy()
+        self.df = None if df is None else df.copy()
         self.base_messages = base_messages
         self.templates = {}
         self._logger = logging.getLogger(self.LOGGER_NAME)
@@ -341,11 +337,11 @@ class BuildTemplates:
         Args:
             message_name: Key in base_messages to add as a column
         """
-        if message_name not in self.base_messages:
-            self._logger.error(f"Message '{message_name}' not found in base_messages")
-            raise KeyError(f"Message '{message_name}' not found in base_messages")
-            
-        self.df[f"{message_name}_message"] = self.base_messages[message_name]
+        if (self.df is not None) and (self.base_messages is not None):
+            if message_name not in list(self.base_messages.keys()):
+                self._logger.error(f"Message '{message_name}' not found in base_messages")
+                raise KeyError(f"Message '{message_name}' not found in base_messages")
+            self.df[f"{message_name}_message"] = self.base_messages[message_name]
     
     def replace_prompt_variable(self, message_col: str, variable_name: str, replace_col: str) -> None:
         """
@@ -356,18 +352,19 @@ class BuildTemplates:
             variable_name: Variable name to replace (without braces)
             replace_col: Column containing replacement values
         """
-        if message_col not in self.df.columns:
-            self._logger.error(f"Message column '{message_col}' not found in DataFrame")
-            raise KeyError(f"Message column '{message_col}' not found in DataFrame")
-            
-        if replace_col not in self.df.columns:
-            self._logger.error(f"Replacement column '{replace_col}' not found in DataFrame")
-            raise KeyError(f"Replacement column '{replace_col}' not found in DataFrame")
-            
-        self.df[message_col] = self.df.apply(
-            lambda row: row[message_col].replace(f"{{{variable_name}}}", str(row[replace_col])), 
-            axis=1
-        )
+        if (self.df is not None):
+            if message_col not in self.df.columns:
+                self._logger.error(f"Message column '{message_col}' not found in DataFrame")
+                raise KeyError(f"Message column '{message_col}' not found in DataFrame")
+                
+            if replace_col not in self.df.columns:
+                self._logger.error(f"Replacement column '{replace_col}' not found in DataFrame")
+                raise KeyError(f"Replacement column '{replace_col}' not found in DataFrame")
+                
+            self.df[message_col] = self.df.apply(
+                lambda row: row[message_col].replace(f"{{{variable_name}}}", str(row[replace_col])), 
+                axis=1
+            )
 
     def replace_prompt_variables_from_frame(self, message_col: str, replace_col: str) -> None:
         """
@@ -377,25 +374,26 @@ class BuildTemplates:
             message_col: Column containing the message template
             replace_col: Column containing replacement values
         """
-        if message_col not in self.df.columns:
-            self._logger.error(f"Message column '{message_col}' not found in DataFrame")
-            raise KeyError(f"Message column '{message_col}' not found in DataFrame")
-            
-        if replace_col not in self.df.columns:
-            self._logger.error(f"Replacement column '{replace_col}' not found in DataFrame")
-            raise KeyError(f"Replacement column '{replace_col}' not found in DataFrame")
-            
-        self.df[message_col] = self.df.apply(
-            lambda row: row[message_col].replace(f"{{{replace_col}}}", str(row[replace_col])), 
-            axis=1
-        )
+        if (self.df is not None):
+            if message_col not in self.df.columns:
+                self._logger.error(f"Message column '{message_col}' not found in DataFrame")
+                raise KeyError(f"Message column '{message_col}' not found in DataFrame")
+                
+            if replace_col not in self.df.columns:
+                self._logger.error(f"Replacement column '{replace_col}' not found in DataFrame")
+                raise KeyError(f"Replacement column '{replace_col}' not found in DataFrame")
+                
+            self.df[message_col] = self.df.apply(
+                lambda row: row[message_col].replace(f"{{{replace_col}}}", str(row[replace_col])), 
+                axis=1
+            )
 
     def assemble_templates_from_df(
         self, 
         system_message_col: str = 'system_message', 
         user_message_col: str = 'user_message', 
         template_name_prefix: str = 'template'
-    ) -> Dict[str, ChatPromptTemplate]:
+    ) -> Union[dict[str, ChatPromptTemplate], None]:
         """
         Create prompt templates for each row in the DataFrame.
         
@@ -407,27 +405,27 @@ class BuildTemplates:
         Returns:
             Dictionary of ChatPromptTemplate objects
         """
-        if system_message_col not in self.df.columns:
-            self._logger.error(f"System message column '{system_message_col}' not found in DataFrame")
-            raise KeyError(f"System message column '{system_message_col}' not found in DataFrame")
+        if (self.df is not None):
+            if system_message_col not in self.df.columns:
+                self._logger.error(f"System message column '{system_message_col}' not found in DataFrame")
+                raise KeyError(f"System message column '{system_message_col}' not found in DataFrame")
+                
+            if user_message_col not in self.df.columns:
+                self._logger.error(f"User message column '{user_message_col}' not found in DataFrame")
+                raise KeyError(f"User message column '{user_message_col}' not found in DataFrame")
             
-        if user_message_col not in self.df.columns:
-            self._logger.error(f"User message column '{user_message_col}' not found in DataFrame")
-            raise KeyError(f"User message column '{user_message_col}' not found in DataFrame")
-        
-        templates = {}
-        for index, row in tqdm(self.df.iterrows(), total=len(self.df), desc="Building templates"):
-            system_message = row[system_message_col]
-            user_message = row[user_message_col]
-            template_name = f"{template_name_prefix}{index+1}"
-            
-            templates[template_name] = self.get_template_from_messages(
-                system_message=system_message,
-                user_message=user_message
-            )
-            
-        self.templates = templates
-        return templates
+            templates = {}
+            for index, row in tqdm(self.df.iterrows(), total=len(self.df), desc="Building templates"):
+                system_message = row[system_message_col]
+                user_message = row[user_message_col]
+                template_name = f"{template_name_prefix}{index}"               
+                templates[template_name] = self.get_template_from_messages(
+                    system_message=system_message,
+                    user_message=user_message
+                )
+                
+            self.templates = templates
+            return templates
 
     @staticmethod
     def get_template_from_messages(system_message: str, user_message: str) -> ChatPromptTemplate:

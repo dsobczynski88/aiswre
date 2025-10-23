@@ -5,33 +5,27 @@ Module that evaluates the quality of requirement specifications based on INCOSE
 This module contains functions that assess various aspects of requirements to 
 identify potential issues such as passive voice, vague verbs, indefinite articles, 
 and other problematic constructs as referenced in the INCOSE guide.
-
-Functions:
-- convert_bool_to_ohe: Converts a boolean input to a one-hot encoded integer (0 or 1).
-- eval_is_in_passive_voice: (Placeholder) Checks if a text is written in passive voice.
-- eval_if_vague_verb: Identifies if a requirement uses any vague verbs.
-- eval_has_a_def_article: Checks if a text contains an indefinite article "a".
-- eval_has_vague_terms: Detects the presence of vague terms within the text.
-- eval_has_escape_clause: Checks for escape clauses which indicate vague conditions.
-- eval_has_open_end_clause: Detects open-end clauses that suggest incompleteness.
-- eval_has_superfl_inf: Identifies the presence of superfluous infinitive phrases.
-- eval_has_combinators: Checks for words that join or combine clauses.
-
-Logging:
-- Configures a logger 'proj_logger' for accurate logging of results and possible issues. 
 """
 
 
-from typing import Union, List 
+from typing import Union, List, Sequence, Optional, Dict, Any
+from collections import Counter
+import inspect 
 import re
 import logging
+import numpy as np
 import pandas as pd
+from pandas.api.types import is_list_like, is_scalar
 from tqdm import tqdm
 import nltk
 from nltk import sent_tokenize, word_tokenize, pos_tag
 import src
+from src import utils
+import warnings
 
 nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
+nltk.download('punkt_tab')
 
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
@@ -43,7 +37,445 @@ def convert_bool_to_ohe(bool_result: bool) -> int:
         return 1
     else:
         return 0
+
+def make_eval_config(module, exclude_funcs=None, include_funcs=None):
+    """
+    Returns a dictionary mapping function names to function objects for functions in module
+    whose names start with 'eval', honoring optional inclusion/exclusion lists. Also extracts
+    the rule number from the function docstring if present (not returned).
+
+    Args:
+        module (module): The module to inspect.
+        exclude_funcs (list[str] | None): Names of functions to exclude. Defaults to None.
+        include_funcs (list[str] | None): If provided, only these function names are considered.
+            Defaults to None.
+
+    Returns:
+        dict[str, function]: Mapping of function names to function objects.
+    """
+    import inspect
+    import re
+
+    exclude_set = set(exclude_funcs or [])
+    include_set = set(include_funcs) if include_funcs is not None else None
+
+    functions = inspect.getmembers(module, inspect.isfunction)
+    eval_config = {}
+    for name, func in functions:
+        if not name.startswith('eval'):
+            continue
+        if include_set is not None and name not in include_set:
+            continue
+        if name in exclude_set:
+            continue
+
+        docstring = inspect.getdoc(func)
+        match = re.search(r'R\d+', docstring or '')
+        rule_number = match.group(0) if match else ''
+        # rule_number extracted but not stored; keep here if needed later
+        eval_config[name] = func
+
+    return eval_config
+
+def make_rule_group_config(module, rule_groups):
+    """
+    Returns a dictionary mapping function rule numbers to rule groups for all functions in `module`
+    whose names start with 'eval' and are not in `exclude_funcs`. 
+
+    Args:
+        module (module): The module to inspect.
+        rule_groups (dict): Dictionary with functions as keys and rule groups as values.
+
+    Returns:
+        dict: Mapping of function names to function objects.
+    """
+    functions = inspect.getmembers(module, inspect.isfunction)
+    rule_group_config = {}
+    for name, func in functions:
+        if name.startswith('eval'):
+            docstring = inspect.getdoc(func)
+            match = re.search(r'R\d+', str(docstring))
+            rule_number = match.group() if match else ''
+            # You can keep rule_number somewhere if needed
+            rule_group_config[rule_number] = rule_groups[name]
+    return rule_group_config
+
+def count_evals_per_rule_group(section_4_rule_groups, exclude_funcs=None, include_funcs=None, include_zero_groups=False):
+    """
+    Count the number of functions mapped to each rule group in section_4_rule_groups,
+    with optional inclusion and exclusion filters.
+
+    Args:
+        section_4_rule_groups (Mapping[str, str]): Dict mapping function name -> rule group.
+        exclude_funcs (Iterable[str] | None): Iterable of function names to exclude.
+        include_funcs (Iterable[str] | None): If provided, only these function names are considered.
+        include_zero_groups (bool): If True, include groups that end up with 0 after filtering.
+
+    Returns:
+        dict[str, int]: Mapping of rule group -> count of functions.
+    """
+    if exclude_funcs is None:
+        exclude_funcs = ()
+    exclusions = set(exclude_funcs)
+
+    # Determine the candidate function names to consider
+    if include_funcs is None:
+        candidate_funcs = set(section_4_rule_groups.keys())
+    else:
+        candidate_funcs = set(include_funcs) & set(section_4_rule_groups.keys())
+
+    from collections import defaultdict
+    counts = defaultdict(int)
+
+    # Count only non-excluded functions among candidates
+    for func_name in candidate_funcs:
+        if func_name in exclusions:
+            continue
+        group = section_4_rule_groups[func_name]
+        counts[group] += 1
+
+    if include_zero_groups:
+        # Ensure all groups reachable from the candidate set appear, even if zero after filtering
+        candidate_groups = {section_4_rule_groups[f] for f in candidate_funcs}
+        for group in candidate_groups:
+            counts.setdefault(group, 0)
+
+    return dict(counts)
+
+def concat_total_evals_with_df(df, rule_group_counts, inplace=False, sort_groups=False):
+    """
+    Concatenate (column-wise) total rule-group eval counts to a DataFrame.
+
+    For each rule group key in rule_group_counts, adds a column named
+    f"total_evals_{rg}" whose value is the corresponding count, broadcast
+    to all rows.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame to augment.
+        rule_group_counts (Mapping[str, int]): Output from count_functions_per_rule_group.
+        inplace (bool): If True, modify df in place; otherwise return a copy.
+        sort_groups (bool): If True, add columns in sorted order of rule group keys.
+
+    Returns:
+        pandas.DataFrame: DataFrame with added total_evals_* columns.
+    """
+    import pandas as pd  # noqa: F401 - ensure pandas is available for DataFrame operations
+
+    if rule_group_counts is None:
+        rule_group_counts = {}
+
+    target = df if inplace else df.copy()
+    groups = sorted(rule_group_counts) if sort_groups else rule_group_counts.keys()
+
+    for rg in groups:
+        target[f"total_evals_{rg}"] = rule_group_counts[rg]
+
+    return target
+
+def call_evals(df: pd.DataFrame, col: str, eval_config: dict) -> pd.DataFrame:
+    """
+    Run evaluations for each row in the DataFrame.
     
+    Args:
+        df: DataFrame containing requirements
+        col: Column containing requirement text
+        eval_config: Dictionary where keys are evaluation function names and values
+            are the evaluation functions
+
+    Returns:
+        DataFrame with evaluation results
+    """
+    result_df = df.copy()
+    # Run evaluations for each row
+    for idx, row in result_df.iterrows():
+        for eval_name, eval_func in eval_config.items():
+            if type(row[col]) == list:
+                row_value = ' '.join(row[col])
+            elif type(row[col]) == float:
+                row_value = str(row[col])
+            else:
+                row_value = row[col]
+            eval_result = eval_func(row_value)
+            result_df.loc[idx, eval_name] = convert_bool_to_ohe(eval_result) # type: ignore
+    return result_df
+
+
+def get_failed_evals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Identify failed evaluations for each requirement.
+    
+    Args:
+        df: DataFrame with evaluation results
+        
+    Returns:
+        DataFrame with added 'failed_evals' column
+    """
+    result_df = df.copy()
+    eval_cols = [c for c in result_df.columns if c.startswith("eval")]
+    
+    result_df['failed_evals'] = result_df[eval_cols].apply(
+        lambda row: [eval_cols[i] for i, val in enumerate(row) if val == 0], 
+        axis=1
+    )
+    
+    return result_df
+
+
+def map_failed_eval_col_to_rule_group(
+    df: pd.DataFrame, 
+    eval_to_rule_map: dict[str, str],
+    failed_eval_col: str = 'failed_evals'
+    ) -> pd.DataFrame:
+    """
+    Map failed evaluations to rule IDs.
+    
+    Args:
+        df: DataFrame with failed evaluations
+        eval_to_rule_map: Mapping from evaluation names to rule IDs
+        failed_eval_col: Column name containing failed evals
+        
+    Returns:
+        DataFrame with added 'failed_evals_rule_ids' column
+    """
+    result_df = df.copy()
+    
+    result_df['failed_evals_rule_ids'] = result_df[failed_eval_col].apply(
+        lambda eval_list: utils.map_A_to_B(eval_list, eval_to_rule_map) if isinstance(eval_list, list) else None
+    )
+    return result_df
+
+def get_failed_eval_count_by_rule_group(
+    df: pd.DataFrame,
+    rule_groups: list =  [
+        'Realism', 
+        'Conditions', 
+        'Singularity', 
+        'Uniformity_Of_Language', 
+        'Concision', 
+        'Modularity', 
+        'Non_Ambiguity', 
+        'Tolerance', 
+        'Quantifiers', 
+        'Quantification', 
+        'Completeness', 
+        'Accuracy', 
+        'Abstraction'],
+    failed_eval_col: str = 'failed_evals_rule_ids'
+    ) -> pd.DataFrame:
+    """
+    Apply Counter-like counts to failed evaluations per row and expand into columns.
+    
+    Args:
+    df: DataFrame with failed evaluations
+    rule_groups: Known set of rule groups to include as columns (extras seen in data are also added)
+    failed_eval_col: Column name containing list-like of failed eval rule groups
+
+    Returns:
+        DataFrame with added f'failed_evals_{{rule_group}}' columns for each rule group.
+    """
+    result_df = df.copy()
+
+    if failed_eval_col not in result_df.columns:
+        raise KeyError(f"Column '{failed_eval_col}' not found in DataFrame.")
+
+    # Normalize each cell to a list of rule groups (avoid iterating strings)
+    def _normalize_to_list(x):
+        if is_list_like(x) and not isinstance(x, (str, bytes)):
+            return list(x)
+        if is_scalar(x):
+            # Treat missing scalars as empty
+            try:
+                if pd.isna(x):
+                    return []
+            except TypeError:
+                pass
+            return [x]
+        # Fallback: wrap unknown types
+        return [x]
+
+    vals = result_df[failed_eval_col].map(_normalize_to_list)
+
+    # Explode and count efficiently with crosstab (counts duplicates per row)
+    exploded = vals.explode()
+
+    if exploded.dropna().empty:
+        # No values to count; create zero columns from provided rule_groups (if any)
+        counts = pd.DataFrame(index=result_df.index)
+        if rule_groups:
+            for rg in rule_groups:
+                counts[f'failed_evals_{rg}'] = 0
+        return result_df.join(counts)
+
+    counts = pd.crosstab(exploded.index, exploded)
+
+    # Ensure all rows exist
+    if not counts.index.equals(result_df.index):
+        counts = counts.reindex(result_df.index, fill_value=0)
+
+    # Include provided rule_groups and also keep any extra groups found in data
+    if rule_groups is not None:
+        extras = [c for c in counts.columns if c not in rule_groups]
+        ordered_cols = list(dict.fromkeys([*rule_groups, *extras]))
+        counts = counts.reindex(columns=ordered_cols, fill_value=0)
+
+    # Prefix and cast to int
+    counts = counts.add_prefix('failed_evals_').astype('int64')
+    return result_df.join(counts)
+
+def add_failed_eval_diffs(
+    df,
+    requirement_id="requirement_id",
+    rule_groups=None,
+    order_by=None,
+    ascending=True,
+    ):
+    """
+    Add per-group difference columns for each failed_evals_{rule_group}.
+
+    For each rule_group in rule_groups, this function computes (last - first) value
+    within each requirement_id group for the column "failed_evals_{rule_group}" and
+    writes the result back to a new column "failed_evals_{rule_group}_diff", repeated
+    for every row of the group.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe containing the requirement_id column and failed_evals_* columns.
+    requirement_id : str, default "requirement_id"
+        Column name that identifies each requirement group.
+    rule_groups : list[str] or None, default None
+        List of rule group names. If None, uses the default rule_groups.
+    order_by : str or list[str] or None, default None
+        Optional column(s) used to sort rows within each requirement_id group before
+        taking the first and last values. If None, the existing row order is used.
+    ascending : bool or list[bool], default True
+        Sort order corresponding to order_by.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy of df with added columns "failed_evals_{rule_group}_diff" for each
+        present failed_evals_* column.
+
+    Notes
+    -----
+    - Uses groupby.transform('first') and transform('last'), which select the first/last
+    non-null values in each group. If you need strictly positional first/last including
+    NaNs, consider pre-sorting and using an index-aware approach.
+    - Groups with a single row will get a diff of 0 for numeric columns.
+    """
+    import pandas as pd
+
+    if requirement_id not in df.columns:
+        raise KeyError(f"Column '{requirement_id}' not found in df.")
+
+    if rule_groups is None:
+        rule_groups = [
+            "Realism",
+            "Conditions",
+            "Singularity",
+            "Uniformity_Of_Language",
+            "Concision",
+            "Modularity",
+            "Non_Ambiguity",
+            "Tolerance",
+            "Quantifiers",
+            "Quantification",
+            "Completeness",
+            "Accuracy",
+            "Abstraction",
+        ]
+
+    # Identify the failed_evals_* columns that actually exist in df
+    target_cols = [f"failed_evals_{rg}" for rg in rule_groups]
+    cols = [c for c in target_cols if c in df.columns]
+    if not cols:
+        # Nothing to do; return a copy
+        return df.copy()
+
+    df_out = df.copy()
+
+    # If an ordering within groups is requested, compute transforms on a sorted view
+    if order_by is not None:
+        sort_cols = [requirement_id, *(list(order_by) if isinstance(order_by, (list, tuple)) else [order_by])]
+        tmp = df_out.sort_values(sort_cols, ascending=ascending)
+        g = tmp.groupby(requirement_id, sort=False)
+
+        first = g[cols].transform("first").reindex(df_out.index)
+        last = g[cols].transform("last").reindex(df_out.index)
+    else:
+        g = df_out.groupby(requirement_id, sort=False)
+        first = g[cols].transform("first")
+        last = g[cols].transform("last")
+
+    diff = first - last
+
+    # Assign new _diff columns
+    df_out = df_out.assign(**{f"{c}_diff": diff[c] for c in cols})
+
+    return df_out
+
+def add_weighted_column(
+    df: pd.DataFrame,
+    cols,
+    weights,
+    new_col: str,
+    *,
+    normalize: bool = False,
+    reweight_on_na: bool = False,
+    fillna=None,
+    dtype=None,
+    ) -> pd.Series:
+    """
+    Add a weighted-sum column to df from cols with weights.
+
+    Parameters:
+    df: DataFrame to modify
+    cols: list-like of column names to weight
+    weights: list-like of numbers (same length as cols)
+    new_col: name of the new column to create
+    normalize: if True, scale weights to sum to 1 beforehand
+    reweight_on_na: if True, re-normalize weights per row using only non-NA inputs
+    fillna: value to fill NaNs in the input columns before weighting (ignored if reweight_on_na=True)
+    dtype: optional dtype for the output column
+
+    Returns:
+    The series added to the dataframe.
+    """
+    if len(cols) != len(weights):
+        raise ValueError("cols and weights must have the same length.")
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"Columns not in DataFrame: {missing}")
+
+    w = np.asarray(weights, dtype=float)
+    if normalize:
+        s = w.sum()
+        if s == 0:
+            raise ValueError("Sum of weights is zero; cannot normalize.")
+        w = w / s
+
+    if reweight_on_na:
+        vals = df[cols].to_numpy(dtype=float)
+        mask = ~np.isnan(vals)
+        row_w = np.where(mask, w, 0.0)
+        denom = row_w.sum(axis=1, keepdims=True)
+        # Avoid division by zero; rows with all-NA produce NaN
+        denom = np.where(denom == 0, np.nan, denom)
+        out = np.nansum(vals * (row_w / denom), axis=1)
+        result = pd.Series(out, index=df.index, name=new_col)
+    else:
+        data = df[cols] if fillna is None else df[cols].fillna(fillna)
+        result = data.mul(w, axis=1).sum(axis=1)
+        result.name = new_col
+
+    if dtype is not None:
+        result = result.astype(dtype)
+
+    df[new_col] = result
+    return result
+
+
 def eval_is_structured_statement(text: str, patterns: list = [None]) -> bool:
     """
     R1: Criteria from INCOSE Guide to Writing Requirements:
@@ -107,8 +539,6 @@ def eval_is_structured_statement(text: str, patterns: list = [None]) -> bool:
             return True
 
     return False
-
-
 
 def eval_is_active_voice(text: str) -> bool:
     """
@@ -391,6 +821,7 @@ def eval_definite_articles_usage(text: str) -> bool:
     Note that natural language analysis is complex, and this function provides a reasonable heuristic 
     rather than perfect detection. More sophisticated analysis would require deeper syntactic parsing.
     """
+    nltk.download('punkt_tab')
     
     # Tokenizing and checking each word in the text
     tokens = word_tokenize(text)
@@ -694,7 +1125,6 @@ def eval_has_correct_grammar(text: str) -> bool:
     return len(matches) == 0
 
 
-
 def eval_correct_spelling(
     text: str, 
     extra_dictionary: set = set(), 
@@ -734,12 +1164,12 @@ def eval_correct_spelling(
     import re
     import sys
     try:
-        import enchant
+        from enchant import Dict # type: ignore
     except ImportError:
         raise ImportError("The 'enchant' library is required for this function. Install with 'pip install pyenchant'.")
     
     # Basic English dictionary
-    d = enchant.Dict("en_US")
+    d = Dict("en_US")
     
     # Accept project/common engineering words if supplied
     if extra_dictionary is None:
@@ -1285,7 +1715,7 @@ def eval_explicit_enumeration(text: str, group_nouns: list = [None]) -> bool:
         tokens = word_tokenize(sentence)
         tokens_lower = [w.lower() for w in tokens]
         for noun in group_nouns:
-            if noun.lower() in tokens_lower:
+            if (noun.lower() in tokens_lower) and (noun is not None):
                 # If an enumeration follows, it's acceptable.
                 if _is_explicitly_enumerated(sentence, noun):
                     continue
@@ -1345,7 +1775,7 @@ def eval_has_supporting_diagram_or_model_reference(
     """
     import re
 
-    if diagram_terms is None:
+    if diagram_terms is [None]:
         diagram_terms = [
             "diagram", "drawing", "figure", "table", "model", "icd",
             "interface control document", "see diagram", "see drawing", "see figure",
@@ -1590,7 +2020,7 @@ def eval_has_explicit_conditions_for_single_action(text: str) -> bool:
         if len(conjunctions) > 1:
             # More than one conjunction suggests multiple conditions
             # Determine if they are conjunctions (AND) or disjunctions (OR)
-            conjunction_types = {'and': [], 'or': []}
+            conjunction_types = {'and': [], 'or': [], 'but': []}
             for conj in conjunctions:
                 conjunction_types[conj].append(conj)
             
@@ -1661,7 +2091,6 @@ def classify_requirement_type(text: str) -> str:
     return "No category found for the provided requirement statement."
 
 
-def eval_is_unique_expression(text: str, existing_statements: list = [None], similarity_threshold: float = 0.85) -> bool:
     """
     R30: Criteria from INCOSE Guide to Writing Requirements:
         Checks if the given requirement statement is a unique expression.
@@ -1695,6 +2124,9 @@ def eval_is_unique_expression(text: str, existing_statements: list = [None], sim
     Example usage:
         is_unique = eval_is_unique_expression("The system shall generate a user report.", existing_statement_list)
     """
+
+
+def eval_is_unique_expression(text: str, existing_statements: list = [None], similarity_threshold: float = 0.85) -> bool:
     import re
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
@@ -1702,8 +2134,7 @@ def eval_is_unique_expression(text: str, existing_statements: list = [None], sim
     except ImportError:
         raise ImportError("scikit-learn is required for eval_is_unique_expression.")
 
-    if existing_statements is None or len(existing_statements) == 0:
-        # Nothing to compare to; treat as unique.
+    if existing_statements is [None] or len(existing_statements) == 0:
         return True
 
     # Normalize whitespace and lowercase for exact duplicate comparison
@@ -1713,20 +2144,18 @@ def eval_is_unique_expression(text: str, existing_statements: list = [None], sim
     if norm_text in norm_existing:
         return False  # Exact duplicate found
 
-    # Check for near-duplicates (semantic similarity)
-    all_statements = norm_existing + [norm_text]
-    # Simple token cleaning (alphanumeric only, remove punctuation)
     def basic_clean(s):
         return re.sub(r"[^\w\s]", " ", s).lower()
 
+    all_statements = norm_existing + [norm_text]
     cleaned = [basic_clean(s) for s in all_statements]
     vectorizer = TfidfVectorizer(stop_words="english")
     tfidf_matrix = vectorizer.fit_transform(cleaned)
-    # Compute cosine similarity between target text and all others (last row)
-    target_vec = tfidf_matrix[-1]
-    similarities = cosine_similarity(target_vec, tfidf_matrix[:-1])[0]
 
-    # If any similarity exceeds threshold, it's non-unique
+    target_vec = tfidf_matrix.getrow(tfidf_matrix.shape[0] - 1)
+    others_matrix = tfidf_matrix[:tfidf_matrix.shape[0] - 1] # type: ignore
+    similarities = cosine_similarity(target_vec, others_matrix)[0]
+
     if any(sim >= similarity_threshold for sim in similarities):
         return False
 
@@ -2410,7 +2839,7 @@ def eval_is_structured_set(text: str, template_sections: list = [None]) -> bool:
     import re
 
     # Fallback: Most common section headers
-    if template_sections is None:
+    if template_sections is [None]:
         template_sections = [
             "Need Statement", "Requirement Statement", "Rationale", "Verification", "Validation",
             "Traceability", "Assumptions", "Constraints", "Acceptance Criteria"

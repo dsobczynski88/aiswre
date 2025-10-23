@@ -1,10 +1,10 @@
-MODEL: 'llama3.1'
+MODEL: 'gpt-4o-mini'
 SELECTED_BASE_TEMPLATE: 'req-reviewer-instruct-2'
 ITERNUM: 1
 FILE_LOCATIONS:
-  MAIN_DATA_FOLDER: './src/data'
-  INCOSE_GUIDE: './src/data/incose_gtwr.pdf'
-  DATASET_FILE_PATH: './src/data/demo_dataset_2.xlsx'
+  MAIN_DATA_FOLDER: '../src/data'
+  INCOSE_GUIDE: '../src/data/incose_gtwr.pdf'
+  DATASET_FILE_PATH: '../src/data/demo_dataset_2.xlsx'
 REQUIREMENTS_DATASET_SETTINGS:
   REQ_COLNAME: 'Requirement'
   FAILED_EVAL_COL: 'failed_evals'
@@ -17,6 +17,12 @@ INCOSE_GUIDE_SETTINGS:
   REPLACE_WITH: ' '
   SUBPATTERNS: 
     - 'Guide to Writing Requirements[\s\d]+'
+GENERAL_REVIEWER_TEMPLATE:
+  req-reviewer-gen-1:
+    name:
+    description:
+    system:
+    user:
 BASE_PROMPT_TEMPLATES:
   req-reviewer-instruct-1:
     name: 'req-reviewer-instruct-1'
@@ -51,3 +57,45 @@ PROMPT_EVALUTION_CONFIG:
   R10: 'eval_has_superfl_inf'
   R19: 'eval_has_combinators' 
 EVALUATION_FUNCTION_MAP: none
+SECTION_4_RULE_GROUPS:
+  eval_acronym_consistency: Uniformity_Of_Language
+  eval_avoid_pronouns: Completeness
+  eval_avoids_absolutes: Realism
+  eval_avoids_parentheses: Abstraction
+  eval_avoids_purpose_phrases: Abstraction
+  eval_avoids_vague_terms: Accuracy
+  eval_consistent_terms_and_units: Quantification
+  eval_correct_punctuation: Uniformity_Of_Language
+  eval_correct_spelling: Uniformity_Of_Language
+  eval_decimal_format: Uniformity_Of_Language
+  eval_definite_articles_usage: Accuracy
+  eval_explicit_enumeration: Abstraction
+  eval_follows_style_guide: Uniformity_Of_Language
+  eval_group_related_needs_requirements: Modularity
+  eval_has_appropriate_subject_verb: Accuracy
+  eval_has_combinators: Abstraction
+  eval_has_common_units_of_measure: Accuracy
+  eval_has_correct_grammar: Non-Ambiguity
+  eval_has_escape_clauses: Accuracy
+  eval_has_explicit_conditions: Conditions
+  eval_has_explicit_conditions_for_single_action: Conditions
+  eval_has_indefinite_temporal_keywords: Quantification
+  eval_has_measurable_performance: Tolerance
+  eval_has_no_open_ended_clauses: Accuracy
+  eval_has_no_superfluous_infinitives: Concision
+  eval_has_range_of_values: Tolerance
+  eval_has_separate_clauses_for_conditions: Concision
+  eval_has_supporting_diagram_or_model_reference: Singularity
+  eval_is_active_voice: Accuracy
+  eval_is_independent_of_heading: Completeness
+  eval_is_singular_statement: Singularity
+  eval_is_solution_free: Abstraction
+  eval_is_structured_set: Modularity
+  eval_is_structured_statement: Concision
+  eval_is_unique_expression: Uniqueness
+  eval_logical_expressions: Non_Ambiguity
+  eval_no_oblique_symbol: Non_Ambiguity
+  eval_terms_are_defined: Non_Ambiguity
+  eval_uses_abbreviations: Uniformity_of_Language
+  eval_uses_not: Tolerance
+  eval_uses_universal_qualification: Quantifiers

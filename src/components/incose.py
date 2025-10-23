@@ -27,7 +27,6 @@ from src.components.preprocess import TextPreprocessor, Sectionalize, BuildTempl
 
 nest_asyncio.apply()
 
-
 def preprocess_incose_guide(
     input_path: Path, 
     output_path: Path, 
@@ -101,7 +100,6 @@ def extract_incose_rule_info(df: pd.DataFrame) -> pd.DataFrame:
     df['rule_number'] = df['extract'].apply(
         lambda s: re.search(r'^ (R\d+) –', s, flags=re.DOTALL).group(1) if re.search(r'^ (R\d+) –', s, flags=re.DOTALL) else None
     )
-    
     # Extract rule title
     df['rule_title'] = df['extract'].apply(
         lambda s: re.search(r'^ R\d+ – ([A-Z\W]+) Definition', s, flags=re.DOTALL).group(1) 
@@ -169,7 +167,6 @@ def build_incose_templates(
         user_message_col='user_message',
         template_name_prefix='R'
     )
-    
     return templates
 
 
@@ -366,14 +363,14 @@ class IncoseRequirementReviewer:
             DataFrame with evaluation results
         """
         # Call evaluations
-        df = self.call_evals(df, col)
+        df = pe.call_evals(df, col, eval_to_rule_map)
         
         # Get failed evaluations
-        df = self.get_failed_evals(df)
+        df = pe.get_failed_evals(df)
         
         # Map failed evaluations to rule IDs if mapping provided
         if eval_to_rule_map is not None:
-            df = self.map_failed_evals_to_rule_ids(df, eval_to_rule_map)
+            df = pe.map_failed_eval_col_to_rule_group(df, eval_to_rule_map, failed_eval_col)
         
         # Drop intermediate evaluation columns
         df = df.drop(columns=[c for c in df.columns if c.startswith('eval')])
@@ -399,68 +396,3 @@ class IncoseRequirementReviewer:
                 )
         
         return df
-    
-    def call_evals(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
-        """
-        Run evaluations for each row in the DataFrame.
-        
-        Args:
-            df: DataFrame containing requirements
-            col: Column containing requirement text
-            
-        Returns:
-            DataFrame with evaluation results
-        """
-        result_df = df.copy()
-        
-        # Run evaluations for each row
-        for idx, row in result_df.iterrows():
-            for eval_name, eval_config in self.evals_config.items():
-                eval_func = eval_config["func"]
-                eval_result = eval_func(row[col])
-                result_df.loc[idx, eval_name] = pe.convert_bool_to_ohe(eval_result)
-        
-        return result_df
-    
-    def get_failed_evals(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Identify failed evaluations for each requirement.
-        
-        Args:
-            df: DataFrame with evaluation results
-            
-        Returns:
-            DataFrame with added 'failed_evals' column
-        """
-        result_df = df.copy()
-        eval_cols = [c for c in result_df.columns if c.startswith("eval")]
-        
-        result_df['failed_evals'] = result_df[eval_cols].apply(
-            lambda row: [eval_cols[i] for i, val in enumerate(row) if val == 1.0], 
-            axis=1
-        )
-        
-        return result_df
-
-    def map_failed_evals_to_rule_ids(
-        self, 
-        df: pd.DataFrame, 
-        eval_to_rule_map: Dict[str, str]
-    ) -> pd.DataFrame:
-        """
-        Map failed evaluations to rule IDs.
-        
-        Args:
-            df: DataFrame with failed evaluations
-            eval_to_rule_map: Mapping from evaluation names to rule IDs
-            
-        Returns:
-            DataFrame with added 'failed_evals_rule_ids' column
-        """
-        result_df = df.copy()
-        
-        result_df['failed_evals_rule_ids'] = result_df['failed_evals'].apply(
-            lambda eval_list: map_A_to_B(eval_list, eval_to_rule_map) if isinstance(eval_list, list) else None
-        )
-        
-        return result_df
