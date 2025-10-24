@@ -1,11 +1,7 @@
 .env
-venv/
-playground.py
 aiswre.egg-info/
 __pycache__/
-notebooks/
-blogpost/
-archive/
+venv/
 src/data/*
 !src/data/incose_gtwr.pdf
 !src/data/demo_dataset.xlsx

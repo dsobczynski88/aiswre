@@ -1,149 +1,2865 @@
+"""
+Module that evaluates the quality of requirement specifications based on INCOSE 
+(International Council on Systems Engineering) Guide to Writing Requirements.
+
+This module contains functions that assess various aspects of requirements to 
+identify potential issues such as passive voice, vague verbs, indefinite articles, 
+and other problematic constructs as referenced in the INCOSE guide.
+"""
+
+
+from typing import Union, List, Sequence, Optional, Dict, Any
+from collections import Counter
+import inspect 
 import re
 import logging
-import asyncio
-import nest_asyncio
-from pathlib import Path
-from typing import Union, List
+import numpy as np
 import pandas as pd
+from pandas.api.types import is_list_like, is_scalar
 from tqdm import tqdm
-from langchain_core.prompts.chat import ChatPromptTemplate
+import nltk
+from nltk import sent_tokenize, word_tokenize, pos_tag
 import src
 from src import utils
-from src.prj_logger import get_logs
+import warnings
+
+nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
+nltk.download('punkt_tab')
 
 LOGGERNAME = f"{src.BASE_LOGGERNAME}.prompteval"
 proj_logger = logging.getLogger(LOGGERNAME)
 
 
-
 def convert_bool_to_ohe(bool_result: bool) -> int:
+    """Convert input boolean to an integer"""
     if bool_result:
         return 1
     else:
         return 0
 
-    
-def eval_is_in_passive_voice(text: str) -> bool:
+def make_eval_config(module, exclude_funcs=None, include_funcs=None):
     """
-    R2: Criteria from 4.1.2 INCOSE Guide to Writing Requirements:
-        check if text is written in passive voice
-    """
-    'check for pattern shall + be + [main_verb]'
-    pass
+    Returns a dictionary mapping function names to function objects for functions in module
+    whose names start with 'eval', honoring optional inclusion/exclusion lists. Also extracts
+    the rule number from the function docstring if present (not returned).
 
+    Args:
+        module (module): The module to inspect.
+        exclude_funcs (list[str] | None): Names of functions to exclude. Defaults to None.
+        include_funcs (list[str] | None): If provided, only these function names are considered.
+            Defaults to None.
 
-def eval_if_vague_verb(text: str) -> bool:
+    Returns:
+        dict[str, function]: Mapping of function names to function objects.
     """
-    R3: Criteria from 4.1.3 INCOSE Guide to Writing Requirements:
-        check if the requirements uses a vague verb 
+    import inspect
+    import re
+
+    exclude_set = set(exclude_funcs or [])
+    include_set = set(include_funcs) if include_funcs is not None else None
+
+    functions = inspect.getmembers(module, inspect.isfunction)
+    eval_config = {}
+    for name, func in functions:
+        if not name.startswith('eval'):
+            continue
+        if include_set is not None and name not in include_set:
+            continue
+        if name in exclude_set:
+            continue
+
+        docstring = inspect.getdoc(func)
+        match = re.search(r'R\d+', docstring or '')
+        rule_number = match.group(0) if match else ''
+        # rule_number extracted but not stored; keep here if needed later
+        eval_config[name] = func
+
+    return eval_config
+
+def make_rule_group_config(module, rule_groups):
     """
-    
-    vague_verbs = [
-        "support", "process", "handle", "track", "manage", "flag"
-    ]
-    text = text.split()
-    for verb in vague_verbs:
-        if verb in text:
-            return True
+    Returns a dictionary mapping function rule numbers to rule groups for all functions in `module`
+    whose names start with 'eval' and are not in `exclude_funcs`. 
+
+    Args:
+        module (module): The module to inspect.
+        rule_groups (dict): Dictionary with functions as keys and rule groups as values.
+
+    Returns:
+        dict: Mapping of function names to function objects.
+    """
+    functions = inspect.getmembers(module, inspect.isfunction)
+    rule_group_config = {}
+    for name, func in functions:
+        if name.startswith('eval'):
+            docstring = inspect.getdoc(func)
+            match = re.search(r'R\d+', str(docstring))
+            rule_number = match.group() if match else ''
+            # You can keep rule_number somewhere if needed
+            rule_group_config[rule_number] = rule_groups[name]
+    return rule_group_config
+
+def count_evals_per_rule_group(section_4_rule_groups, exclude_funcs=None, include_funcs=None, include_zero_groups=False):
+    """
+    Count the number of functions mapped to each rule group in section_4_rule_groups,
+    with optional inclusion and exclusion filters.
+
+    Args:
+        section_4_rule_groups (Mapping[str, str]): Dict mapping function name -> rule group.
+        exclude_funcs (Iterable[str] | None): Iterable of function names to exclude.
+        include_funcs (Iterable[str] | None): If provided, only these function names are considered.
+        include_zero_groups (bool): If True, include groups that end up with 0 after filtering.
+
+    Returns:
+        dict[str, int]: Mapping of rule group -> count of functions.
+    """
+    if exclude_funcs is None:
+        exclude_funcs = ()
+    exclusions = set(exclude_funcs)
+
+    # Determine the candidate function names to consider
+    if include_funcs is None:
+        candidate_funcs = set(section_4_rule_groups.keys())
     else:
+        candidate_funcs = set(include_funcs) & set(section_4_rule_groups.keys())
+
+    from collections import defaultdict
+    counts = defaultdict(int)
+
+    # Count only non-excluded functions among candidates
+    for func_name in candidate_funcs:
+        if func_name in exclusions:
+            continue
+        group = section_4_rule_groups[func_name]
+        counts[group] += 1
+
+    if include_zero_groups:
+        # Ensure all groups reachable from the candidate set appear, even if zero after filtering
+        candidate_groups = {section_4_rule_groups[f] for f in candidate_funcs}
+        for group in candidate_groups:
+            counts.setdefault(group, 0)
+
+    return dict(counts)
+
+def concat_total_evals_with_df(df, rule_group_counts, inplace=False, sort_groups=False):
+    """
+    Concatenate (column-wise) total rule-group eval counts to a DataFrame.
+
+    For each rule group key in rule_group_counts, adds a column named
+    f"total_evals_{rg}" whose value is the corresponding count, broadcast
+    to all rows.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame to augment.
+        rule_group_counts (Mapping[str, int]): Output from count_functions_per_rule_group.
+        inplace (bool): If True, modify df in place; otherwise return a copy.
+        sort_groups (bool): If True, add columns in sorted order of rule group keys.
+
+    Returns:
+        pandas.DataFrame: DataFrame with added total_evals_* columns.
+    """
+    import pandas as pd  # noqa: F401 - ensure pandas is available for DataFrame operations
+
+    if rule_group_counts is None:
+        rule_group_counts = {}
+
+    target = df if inplace else df.copy()
+    groups = sorted(rule_group_counts) if sort_groups else rule_group_counts.keys()
+
+    for rg in groups:
+        target[f"total_evals_{rg}"] = rule_group_counts[rg]
+
+    return target
+
+def call_evals(df: pd.DataFrame, col: str, eval_config: dict) -> pd.DataFrame:
+    """
+    Run evaluations for each row in the DataFrame.
+    
+    Args:
+        df: DataFrame containing requirements
+        col: Column containing requirement text
+        eval_config: Dictionary where keys are evaluation function names and values
+            are the evaluation functions
+
+    Returns:
+        DataFrame with evaluation results
+    """
+    result_df = df.copy()
+    # Run evaluations for each row
+    for idx, row in result_df.iterrows():
+        for eval_name, eval_func in eval_config.items():
+            if type(row[col]) == list:
+                row_value = ' '.join(row[col])
+            elif type(row[col]) == float:
+                row_value = str(row[col])
+            else:
+                row_value = row[col]
+            eval_result = eval_func(row_value)
+            result_df.loc[idx, eval_name] = convert_bool_to_ohe(eval_result) # type: ignore
+    return result_df
+
+
+def get_failed_evals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Identify failed evaluations for each requirement.
+    
+    Args:
+        df: DataFrame with evaluation results
+        
+    Returns:
+        DataFrame with added 'failed_evals' column
+    """
+    result_df = df.copy()
+    eval_cols = [c for c in result_df.columns if c.startswith("eval")]
+    
+    result_df['failed_evals'] = result_df[eval_cols].apply(
+        lambda row: [eval_cols[i] for i, val in enumerate(row) if val == 0], 
+        axis=1
+    )
+    
+    return result_df
+
+
+def map_failed_eval_col_to_rule_group(
+    df: pd.DataFrame, 
+    eval_to_rule_map: dict[str, str],
+    failed_eval_col: str = 'failed_evals'
+    ) -> pd.DataFrame:
+    """
+    Map failed evaluations to rule IDs.
+    
+    Args:
+        df: DataFrame with failed evaluations
+        eval_to_rule_map: Mapping from evaluation names to rule IDs
+        failed_eval_col: Column name containing failed evals
+        
+    Returns:
+        DataFrame with added 'failed_evals_rule_ids' column
+    """
+    result_df = df.copy()
+    
+    result_df['failed_evals_rule_ids'] = result_df[failed_eval_col].apply(
+        lambda eval_list: utils.map_A_to_B(eval_list, eval_to_rule_map) if isinstance(eval_list, list) else None
+    )
+    return result_df
+
+def get_failed_eval_count_by_rule_group(
+    df: pd.DataFrame,
+    rule_groups: list =  [
+        'Realism', 
+        'Conditions', 
+        'Singularity', 
+        'Uniformity_Of_Language', 
+        'Concision', 
+        'Modularity', 
+        'Non_Ambiguity', 
+        'Tolerance', 
+        'Quantifiers', 
+        'Quantification', 
+        'Completeness', 
+        'Accuracy', 
+        'Abstraction'],
+    failed_eval_col: str = 'failed_evals_rule_ids'
+    ) -> pd.DataFrame:
+    """
+    Apply Counter-like counts to failed evaluations per row and expand into columns.
+    
+    Args:
+    df: DataFrame with failed evaluations
+    rule_groups: Known set of rule groups to include as columns (extras seen in data are also added)
+    failed_eval_col: Column name containing list-like of failed eval rule groups
+
+    Returns:
+        DataFrame with added f'failed_evals_{{rule_group}}' columns for each rule group.
+    """
+    result_df = df.copy()
+
+    if failed_eval_col not in result_df.columns:
+        raise KeyError(f"Column '{failed_eval_col}' not found in DataFrame.")
+
+    # Normalize each cell to a list of rule groups (avoid iterating strings)
+    def _normalize_to_list(x):
+        if is_list_like(x) and not isinstance(x, (str, bytes)):
+            return list(x)
+        if is_scalar(x):
+            # Treat missing scalars as empty
+            try:
+                if pd.isna(x):
+                    return []
+            except TypeError:
+                pass
+            return [x]
+        # Fallback: wrap unknown types
+        return [x]
+
+    vals = result_df[failed_eval_col].map(_normalize_to_list)
+
+    # Explode and count efficiently with crosstab (counts duplicates per row)
+    exploded = vals.explode()
+
+    if exploded.dropna().empty:
+        # No values to count; create zero columns from provided rule_groups (if any)
+        counts = pd.DataFrame(index=result_df.index)
+        if rule_groups:
+            for rg in rule_groups:
+                counts[f'failed_evals_{rg}'] = 0
+        return result_df.join(counts)
+
+    counts = pd.crosstab(exploded.index, exploded)
+
+    # Ensure all rows exist
+    if not counts.index.equals(result_df.index):
+        counts = counts.reindex(result_df.index, fill_value=0)
+
+    # Include provided rule_groups and also keep any extra groups found in data
+    if rule_groups is not None:
+        extras = [c for c in counts.columns if c not in rule_groups]
+        ordered_cols = list(dict.fromkeys([*rule_groups, *extras]))
+        counts = counts.reindex(columns=ordered_cols, fill_value=0)
+
+    # Prefix and cast to int
+    counts = counts.add_prefix('failed_evals_').astype('int64')
+    return result_df.join(counts)
+
+def add_failed_eval_diffs(
+    df,
+    requirement_id="requirement_id",
+    rule_groups=None,
+    order_by=None,
+    ascending=True,
+    ):
+    """
+    Add per-group difference columns for each failed_evals_{rule_group}.
+
+    For each rule_group in rule_groups, this function computes (last - first) value
+    within each requirement_id group for the column "failed_evals_{rule_group}" and
+    writes the result back to a new column "failed_evals_{rule_group}_diff", repeated
+    for every row of the group.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe containing the requirement_id column and failed_evals_* columns.
+    requirement_id : str, default "requirement_id"
+        Column name that identifies each requirement group.
+    rule_groups : list[str] or None, default None
+        List of rule group names. If None, uses the default rule_groups.
+    order_by : str or list[str] or None, default None
+        Optional column(s) used to sort rows within each requirement_id group before
+        taking the first and last values. If None, the existing row order is used.
+    ascending : bool or list[bool], default True
+        Sort order corresponding to order_by.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy of df with added columns "failed_evals_{rule_group}_diff" for each
+        present failed_evals_* column.
+
+    Notes
+    -----
+    - Uses groupby.transform('first') and transform('last'), which select the first/last
+    non-null values in each group. If you need strictly positional first/last including
+    NaNs, consider pre-sorting and using an index-aware approach.
+    - Groups with a single row will get a diff of 0 for numeric columns.
+    """
+    import pandas as pd
+
+    if requirement_id not in df.columns:
+        raise KeyError(f"Column '{requirement_id}' not found in df.")
+
+    if rule_groups is None:
+        rule_groups = [
+            "Realism",
+            "Conditions",
+            "Singularity",
+            "Uniformity_Of_Language",
+            "Concision",
+            "Modularity",
+            "Non_Ambiguity",
+            "Tolerance",
+            "Quantifiers",
+            "Quantification",
+            "Completeness",
+            "Accuracy",
+            "Abstraction",
+        ]
+
+    # Identify the failed_evals_* columns that actually exist in df
+    target_cols = [f"failed_evals_{rg}" for rg in rule_groups]
+    cols = [c for c in target_cols if c in df.columns]
+    if not cols:
+        # Nothing to do; return a copy
+        return df.copy()
+
+    df_out = df.copy()
+
+    # If an ordering within groups is requested, compute transforms on a sorted view
+    if order_by is not None:
+        sort_cols = [requirement_id, *(list(order_by) if isinstance(order_by, (list, tuple)) else [order_by])]
+        tmp = df_out.sort_values(sort_cols, ascending=ascending)
+        g = tmp.groupby(requirement_id, sort=False)
+
+        first = g[cols].transform("first").reindex(df_out.index)
+        last = g[cols].transform("last").reindex(df_out.index)
+    else:
+        g = df_out.groupby(requirement_id, sort=False)
+        first = g[cols].transform("first")
+        last = g[cols].transform("last")
+
+    diff = first - last
+
+    # Assign new _diff columns
+    df_out = df_out.assign(**{f"{c}_diff": diff[c] for c in cols})
+
+    return df_out
+
+def add_weighted_column(
+    df: pd.DataFrame,
+    cols,
+    weights,
+    new_col: str,
+    *,
+    normalize: bool = False,
+    reweight_on_na: bool = False,
+    fillna=None,
+    dtype=None,
+    ) -> pd.Series:
+    """
+    Add a weighted-sum column to df from cols with weights.
+
+    Parameters:
+    df: DataFrame to modify
+    cols: list-like of column names to weight
+    weights: list-like of numbers (same length as cols)
+    new_col: name of the new column to create
+    normalize: if True, scale weights to sum to 1 beforehand
+    reweight_on_na: if True, re-normalize weights per row using only non-NA inputs
+    fillna: value to fill NaNs in the input columns before weighting (ignored if reweight_on_na=True)
+    dtype: optional dtype for the output column
+
+    Returns:
+    The series added to the dataframe.
+    """
+    if len(cols) != len(weights):
+        raise ValueError("cols and weights must have the same length.")
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"Columns not in DataFrame: {missing}")
+
+    w = np.asarray(weights, dtype=float)
+    if normalize:
+        s = w.sum()
+        if s == 0:
+            raise ValueError("Sum of weights is zero; cannot normalize.")
+        w = w / s
+
+    if reweight_on_na:
+        vals = df[cols].to_numpy(dtype=float)
+        mask = ~np.isnan(vals)
+        row_w = np.where(mask, w, 0.0)
+        denom = row_w.sum(axis=1, keepdims=True)
+        # Avoid division by zero; rows with all-NA produce NaN
+        denom = np.where(denom == 0, np.nan, denom)
+        out = np.nansum(vals * (row_w / denom), axis=1)
+        result = pd.Series(out, index=df.index, name=new_col)
+    else:
+        data = df[cols] if fillna is None else df[cols].fillna(fillna)
+        result = data.mul(w, axis=1).sum(axis=1)
+        result.name = new_col
+
+    if dtype is not None:
+        result = result.astype(dtype)
+
+    df[new_col] = result
+    return result
+
+
+def eval_is_structured_statement(text: str, patterns: list = [None]) -> bool:
+    """
+    R1: Criteria from INCOSE Guide to Writing Requirements:
+        Check if the statement conforms to an agreed structured pattern.
+    
+    This function determines whether a requirement or need statement is well-structured by matching it to a set of agreed patterns.
+    These patterns are typically provided by each organization and are used to ensure consistency and quality across requirement sets.
+    
+    Args:
+        text (str): The requirement or need statement to evaluate.
+        patterns (list, optional): A list of regex patterns (as  re.compile objects or string regexes)
+            representing the organizationally agreed requirement patterns. If not provided,
+            a set of generic patterns is used as defaults, based on typical requirement formats:
+                - "<subject> shall <verb> <object> [<condition>]."
+                - "<subject> must <verb> <object> [<condition>]."
+                - "<subject> will <verb> <object> [<condition>]."
+                - "If <condition>, <subject> shall <verb> <object>."
+                - "<subject> shall be able to <verb> <object> [<condition>]."
+            These patterns aim to capture the most common structures (per INCOSE Appendix C).
+            Organizations are encouraged to supply their own patterns aligned with internal guidance for best results.
+    
+    Returns:
+        bool: True if the statement matches a single agreed pattern; False otherwise.
+    
+    Note: This function uses regular expressions for syntactic heuristic matching and is not a full parser.
+    For precise structural detection, custom organizational patterns should be furnished. The function assumes
+    requirements are stated in clear imperative or indicative voice as required by R1.
+    """
+    import re
+    import nltk
+    from nltk.tokenize import sent_tokenize
+
+    # Ensure NLTK punkt data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
+
+    if patterns is None:
+        # Default patterns capturing common requirement statement forms (case-insensitive, allow optional conditionals)
+        patterns = [
+            r"^[A-Za-z0-9_ ]+ shall [a-z ]+ [A-Za-z0-9_, '\"\(\)\-]+(\s(if|when|unless|provided that|in case)[^\.]*)?\.$",
+            r"^[A-Za-z0-9_ ]+ must [a-z ]+ [A-Za-z0-9_, '\"\(\)\-]+(\s(if|when|unless|provided that|in case)[^\.]*)?\.$",
+            r"^[A-Za-z0-9_ ]+ will [a-z ]+ [A-Za-z0-9_, '\"\(\)\-]+(\s(if|when|unless|provided that|in case)[^\.]*)?\.$",
+            r"^If [^,]+\, [A-Za-z0-9_ ]+ shall [a-z ]+ [A-Za-z0-9_, '\"\(\)\-]+[\.]$",
+            r"^[A-Za-z0-9_ ]+ shall be able to [a-z ]+ [A-Za-z0-9_, '\"\(\)\-]+(\s(if|when|unless|provided that|in case)[^\.]*)?\.$",
+        ]
+
+    # Lowercase text and strip leading/trailing whitespace
+    normalized_text = text.strip()
+
+    # Only evaluate single-sentence statements for structure
+    sentences = sent_tokenize(normalized_text)
+    if len(sentences) > 1:
         return False
 
+    # Try each pattern, case-insensitive matching
+    for pat in patterns:
+        regex = re.compile(pat, re.IGNORECASE)
+        if regex.match(normalized_text):
+            return True
 
-def eval_has_a_def_article(text: str) -> bool:
+    return False
+
+def eval_is_active_voice(text: str) -> bool:
     """
-    R5: Criteria from 4.1.5 INCOSE Guide to Writing Requirements:
-        check if text contains indefinite article \"a\" 
+    R2: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses active voice with identified subject
+        
+    This function evaluates whether the statements in the text are constructed in active voice by checking
+    the structure of sentences to ensure that the subject performs the action. It aims to identify:
+    
+    - Sentences where the subject is performing the action (active voice)
+    - Sentences where the entity is not clear, indicating a potential passive voice construction
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic 
+    rather than perfect detection. More sophisticated analysis would require deeper syntactic parsing.
     """
-    text = text.split()
-    if ["a"] in text:
+    
+    # Ensure NLTK data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("averaged_perceptron_tagger")
+    
+    # Split into sentences
+    sentences = sent_tokenize(text)
+    
+    for sentence in sentences:
+        # Tokenize and tag parts of speech
+        tokens = word_tokenize(sentence)
+        tagged = pos_tag(tokens)
+        
+        # Look for a subject-verb-object structure
+        subjects = []
+        verbs = []
+        objects = []
+        
+        # Identify parts of speech
+        for word, tag in tagged:
+            if tag.startswith('NN'):  # Nouns
+                subjects.append(word)
+            elif tag.startswith('VB'):  # Verbs
+                verbs.append(word)
+            elif tag.startswith('PRP') or tag.startswith('JJ'):  # Pronouns and adjectives can be considered as objects in context
+                objects.append(word)
+        
+        # Check if we have any verbs, and if so, whether they have a subject
+        if verbs:
+            if not subjects:
+                return False  # No clear subject indicates potential passive voice
+            
+            # Further check to ensure it�s not a passive construction (e.g. "is/was + past participle")
+            for verb in verbs:
+                if verb in ["is", "are", "was", "were", "be", "been", "being"]:
+                    return False  # Indicates passive voice construction
+        
+    # If all sentences are in active voice with clearly identified subjects, return True
+    return True
+
+
+def eval_has_appropriate_subject_verb(text: str, entity_type: str = "system") -> bool:
+    """
+    R3: Criteria from INCOSE Guide to Writing Requirements:
+        Check if the requirement statement has an appropriate subject and verb
+        for the entity to which it refers.
+
+    Args:
+        text (str): The requirement statement to evaluate.
+        entity_type (str, optional): The type of entity the requirement should apply to.
+            Possible values: 
+                - 'business' (business management level)
+                - 'business_unit' (business operations level)
+                - 'system' (system level)
+                - 'subsystem' (subsystem level)
+                - 'element' (system element level)
+            Default is 'system', as most requirements are written at the system level.
+
+        The default value for entity_type is 'system' to match common practice; 
+        adjust when you know the specific context (e.g., when reviewing a set of business 
+        requirements, use 'business').
+
+    Returns:
+        bool: True if the subject and verb are appropriate to the specified entity;
+              False otherwise.
+
+    This function uses the following heuristics:
+      - It identifies the likely subject and main verb (via POS tagging and parsing for typical patterns).
+      - It checks if the subject matches the expected subject pattern for the entity_type.
+      - It checks that the main verb is appropriate for needs vs. requirements, 
+        discouraging vague/abstract verbs at the requirement level.
+      - It discourages requirements written on characteristics/qualities rather than the entity itself.
+    
+    Limitations: This uses regular expressions and part-of-speech tagging for a reasonable-confidence
+    heuristic; deeper semantic parsing would improve accuracy, but this should flag most common issues.
+    """
+
+    import re
+    import nltk
+    from nltk import word_tokenize, pos_tag
+
+    # Ensure NLTK data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("averaged_perceptron_tagger")
+
+    # Define possible subject patterns for each entity type
+    subject_patterns = {
+        "business":  [r"the\s+[\w\s]+?(group|company|business|organization|enterprise)\b"],
+        "business_unit": [r"the\s+[\w\s]+?(unit|division|branch|department|team)\b"],
+        "system":    [r"the\s+[\w\s]*system\b", r"the\s+\w+\b"],  # allow generic "The system", "The Aircraft"
+        "subsystem": [r"the\s+[\w\s]*subsystem\b", r"the\s+\w+\b"],  # "The Engine", etc.
+        "element":   [r"the\s+[\w\s]+element\b", r"the\s+\w+\b"],
+    }
+
+    # Verbs to flag as vague for requirements (acceptable for needs at higher levels)
+    vague_verbs = {"support", "process", "handle", "track", "manage", "flag", "enable", "allow", "provide"}
+    # Acceptable verbs for system/subsystem-level requirements (expandable)
+    acceptable_verbs = {
+        "detect", "report", "signal", "alert", "store", "transmit", "receive", "measure", 
+        "operate", "maintain", "engage", "shut", "record", "indicate", "display", "control",
+        "limit", "activate", "acquire", "generate", "calculate", "log", "accept", "reject"
+    }
+
+    # 1. Extract likely subject and verb from the first clause/sentence
+    tokens = word_tokenize(text)
+    tagged = pos_tag(tokens)
+
+    # Find "The ... shall ..." pattern for subject and verb
+    subject = None
+    main_verb = None
+
+    for i in range(len(tagged) - 2):
+        # Pattern: The <Entity subject> shall <verb>
+        if tagged[i][0].lower() == "the" and tagged[i+2][0].lower() == "shall":
+            # subject = text between "The" and "shall"
+            subject_span = tokens[i:i+2]  # just one word entity (default)
+            if tagged[i+1][1] in ("NNP", "NN", "NNS", "JJ"):
+                subject_span = tokens[i:i+2]
+            # Allow for multiword entities
+            subj_end = i + 1
+            for j in range(i+1, min(i+5, len(tagged))):
+                if tagged[j][0].lower() == "shall":
+                    subj_end = j
+                    break
+            subject = " ".join(tokens[i:subj_end])
+            # Get the verb after "shall"
+            if subj_end + 1 < len(tokens):
+                main_verb = tokens[subj_end+1]
+            break
+
+    if not subject or not main_verb:
+        # Very simple fallback: look for first "The ... shall ... [verb]" in text
+        m = re.search(r"\bthe\s+(.*?)\s+shall\s+(\w+)", text, re.IGNORECASE)
+        if m:
+            subject = "The " + m.group(1)
+            main_verb = m.group(2)
+        else:
+            # If unable to parse, fail
+            return False
+
+    # 2. Check subject appropriateness
+    patterns = subject_patterns.get(entity_type, [])
+    match_any_subject = any(re.search(pat, subject, re.IGNORECASE) for pat in patterns)
+    if not match_any_subject:
+        # Does not match typical pattern, reject
+        return False
+
+    # 3. Check verb appropriateness
+    if entity_type in ("system", "subsystem", "element"):
+        # Vague verbs are not acceptable in requirements at these levels
+        if main_verb.lower() in vague_verbs:
+            return False
+        # Acceptable verbs: accept most explicit actions, or if not in list, warn
+        if (
+            main_verb.lower() not in acceptable_verbs 
+            and len(main_verb) <= 6
+        ):
+            # Fallback: if verb is short, and not in accepted, could be too vague�warn but not hard fail
+            pass  # Allow, but can be improved for project-specific lists
+    else:
+        # For business levels, vague verbs are tolerable if justified
+        pass
+
+    # 4. Check special case: requirement on characteristic/attribute (discouraged pattern)
+    if re.search(r"\bshall be\b", text, re.IGNORECASE):
+        # E.g., "The [property/quality] shall be [value]" pattern (should usually be "The [entity] shall <action> <object>")
+        # Check if subject is likely a characteristic rather than an entity
+        char_words = {'size', 'weight', 'color', 'performance', 'capacity', 'availability', 'reliability',
+                      'quality', 'range', 'speed', 'temperature', 'humidity', 'altitude', 'lifespan'}
+        for char in char_words:
+            if re.search(rf"\b{char}\b", subject.lower()):
+                return False
+
+    return True
+
+
+
+def eval_terms_are_defined(text: str, glossary: set = set()) -> bool:
+    """
+    R4: Criteria from INCOSE Guide to Writing Requirements:
+        Check if all terms (potentially ambiguous or technical) in the requirement are present in a provided glossary.
+
+    This function analyzes a requirement statement to determine whether all terms used, which may have a specific meaning or may be ambiguous, are present in an associated glossary or data dictionary (as per R4).
+    - It identifies such terms by searching for capitalized words, CamelCase words, words with underscores, and phrases enclosed in quotation marks (which are common conventions for glossary terms).
+    - If no glossary is provided, the function attempts to detect glossary-like terms but cannot fully verify that all are defined (in that case, returns True but logs a warning).
+
+    Args:
+        text (str): The requirement statement to check.
+        glossary (set, optional): A set of strings containing allowed glossary terms/phrases.
+            If not provided, the function operates heuristically and cannot guarantee all terms are defined.
+            Default is None, in which case the function assumes all detected terms are (possibly) defined.
+
+    Returns:
+        bool: True if all terms are defined in the glossary (or no glossary is provided), False if some are not.
+
+    Reasoning:
+        The glossary argument defaults to None to allow basic analysis when the glossary is unavailable,
+        such as when doing initial drafting or bulk analysis � but in production, a project-specific glossary should be supplied.
+
+    Note:
+        - This function offers a reasonable heuristic by looking for conventionally marked glossary terms.
+        - Real-world project lexicons might use custom conventions�for full compliance, adapt the glossary parsing as needed.
+    """
+
+    import re
+
+    # If no glossary is supplied, we cannot verify definitions but will at least flag likely glossary terms
+    if glossary is None:
+        # Look for likely defined terms: CamelCase, ALL_CAPS, underscored terms, or quoted phrases
+        # e.g. "System_Mode", "Current_Time", "TargetAltitude", etc.
+        pattern = r'''("[^"]+"|'[^']+'|[A-Z][a-z]+(?:[A-Z][a-z]+)+|[A-Z_][A-Z0-9_]+|[A-Z][a-z]+_[A-Z][a-z]+)'''
+        candidates = re.findall(pattern, text)
+        candidates = [term.strip('"').strip("'") for term in candidates]
+        # If any are found, we assume they're defined, but we can't check.
+        # In production one should always check!
         return True
-    else:
-        return False
+
+    # Build normalized glossary set: case-insensitive
+    glossary_norm = set(g.lower() for g in glossary)
+
+    # Find likely defined terms as above
+    # Also consider multi-word terms in "quotes", and all words capitalized or underscore-separated
+    pattern = r'''("[^"]+"|'[^']+'|[A-Z][a-z]+(?:[A-Z][a-z]+)+|[A-Z_][A-Z0-9_]+|[A-Z][a-z]+_[A-Z][a-z]+)'''
+    candidates = re.findall(pattern, text)
+    # De-quote candidates
+    term_set = set()
+    for term in candidates:
+        clean = term.strip('"').strip("'")
+        term_set.add(clean)
+    # Check if all glossary-like terms are defined in the glossary
+    for term in term_set:
+        # Check lowercase, and also original case, in case
+        if (term.lower() not in glossary_norm) and (term not in glossary):
+            return False
+
+    # Optionally, extend: flag all-noun sequences of >=2 words as possible undefined jargon.
+    # For simplicity, omitted here.
+
+    return True
 
 
-def eval_has_vague_terms(text: str) -> bool:
+
+
+def eval_definite_articles_usage(text: str) -> bool:
     """
-    R7: Criteria from 4.1.7 INCOSE Guide to Writing Requirements:
-        check if text contains vague terms        
+    R5: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses definite articles ("the") rather than indefinite articles ("a")
+        
+    This function evaluates whether the requirement statement uses definite articles ("the") instead of 
+    indefinite articles ("a"). It works by:
+    
+    - Searching for instances of the indefinite article "a" in the text.
+    - Checking whether the instances are used correctly based on the context.
+    - If "a" is found without appropriate definitional backing, the function returns False.
+    - The goal is to ensure there's no ambiguity in referring to defined entities.
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic 
+    rather than perfect detection. More sophisticated analysis would require deeper syntactic parsing.
     """
+    nltk.download('punkt_tab')
+    
+    # Tokenizing and checking each word in the text
+    tokens = word_tokenize(text)
+    
+    # Check for the occurrence of the indefinite article "a"
+    indefinite_article_count = sum(1 for token in tokens if token.lower() == "a")
+    
+    # If no indefinite articles are found, the requirement adheres to the R5 pattern already
+    if indefinite_article_count == 0:
+        return True
+    
+    # If "a" is found, we need to consider its context
+    # For simplicity, we can check if it stands alone or is followed by a noun
+    for i in range(len(tokens) - 1):  # Avoid index out of range
+        if tokens[i].lower() == "a":
+            # Check the next token
+            next_token = tokens[i + 1].lower()
+            
+            # If "a" is followed by a noun, it suggests a potential issue
+            if next_token in ["user", "entity", "system", "requirement"]:  # Common examples
+                return False
+            
+    # If we get through the checks and find no issues, return True
+    return True
+
+
+
+def eval_has_common_units_of_measure(text: str) -> bool:
+    """
+    R6: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses consistent and appropriate units of measure.
+		
+	This function evaluates whether the requirement statement maintains common units of measure by:
+	- Identifying numerical values and their corresponding units of measure.
+	- Ensuring that the same units are used consistently throughout the text.
+	- Checking for mixing of measurement systems or units (e.g., Metric vs. Imperial).
+	- Reporting if any inconsistencies are found, returning False if mixed units are detected.
+
+	Note that natural language analysis can be complex, but this function provides a basic heuristic by examining stated measurement units in the requirement.
+    """
+    import re
+    
+    # Define a pattern to identify numbers and their associated units of measure.
+    measurement_pattern = r"(\d+(\.\d+)?)\s*(\b[mM]eter[s]?|[cC]m|[mM]m|[kK]m|[iI]nch|[fF]eet|[lL]iter|[gG]allon|[pP]ound|[oO]unce|[cC]elsius|[fF]ahrenheit|[kK]elvin|[gG]rams|[kK]ilograms|[sS]econds|[hH]ours|[dD]ays)\b"
+    
+    # Find all matches of the pattern in the text.
+    units_found = re.findall(measurement_pattern, text)
+    
+    # Create a set to hold the unique units of measure identified.
+    unique_units = set()
+    
+    for _, _, unit in units_found:
+        # Add only the base unit without considering duplicates.
+        unique_units.add(unit.lower())
+    
+    # If there are multiple unique units, we have a potential inconsistency.
+    if len(unique_units) > 1:
+        return False  # Multiple units detected, hence inconsistent.
+    
+    # If only one or no units detected, consistency is maintained.
+    return True
+
+
+
+def eval_avoids_vague_terms(text: str) -> bool:
+    """
+    R7: Criteria from INCOSE Guide to Writing Requirements:
+        Check if text avoids vague terms.
+        
+    This function evaluates whether the text contains vague terms that could lead to ambiguity in requirements. It checks
+    for vague quantifiers, adjectives, and adverbs as outlined in the guidelines. 
+
+    The implementation works by:
+        - Compiling a list of vague words (quantifiers, adjectives, adverbs).
+        - Scanning the input text for occurrences of these vague terms.
+        - Returning False if any vague term is found, as their presence indicates a potential issue 
+          with the clarity and verifiability of the requirement.
+
+    Note that natural language processing is complex, and while this function relies on simple substring matches, 
+    it provides a reasonable heuristic for identifying vague terms.
+    """
+    
+    # List of vague terms (quantifiers, adjectives, and adverbs)
     vague_terms = [
-        "some", "any", "allowable", "several", "many", "a lot of", "a few", "almost always", 
-        "very nearly", "nearly", "about", "close to", "almost","approximate","ancillary", "relevant", 
-        "routine", "common", "generic", "significant","flexible", "expandable", "typical", "sufficient", 
-        "adequate", "appropriate", "efficient", "effective", "proficient", "reasonable","customary",
-        "usually", "approximately", "sufficiently","typically"
+        "some", "any", "allowable", "several", "many", "a lot of", "a few", 
+        "almost always", "very nearly", "nearly", "about", "close to", 
+        "almost", "approximate", "ancillary", "relevant", "routine", "common", 
+        "generic", "significant", "flexible", "expandable", "typical", 
+        "sufficient", "adequate", "appropriate", "efficient", "effective", 
+        "proficient", "reasonable", "customary", "usually", "approximately", 
+        "sufficiently", "typically"
     ]
-    text = text.split()
+    
+    # Convert the text to lowercase to ensure the search is case-insensitive
+    text_lower = text.lower()
+    
+    # Scan through the vague terms and check for their presence in the text
     for term in vague_terms:
-        if term in text:
-            return True
-    else:
-        return False
-
-
-def eval_has_escape_clause(text:str) -> bool:
-    """
-    R8: Criteria from 4.1.8 INCOSE Guide to Writing Requirements:
-        check if text contains escape clauses which state vague
-        conditions or possibilities        
-    """
-    clauses = [
-         "so far as is possible", "as little as possible", "where possible", 
-         "as much as possible", "if it should prove necessary", "if necessary", 
-         "to the extent necessary", "as appropriate", "as required", "to the extent practical", 
-         "if practicable"
-    ]
-    for clause in clauses:
-        if clause in text:
-            return True
-    else:
-        return False
+        if term in text_lower:
+            return False  # Vague term detected, return False
     
+    # If no vague terms were found, return True
+    return True
 
-def eval_has_open_end_clause(text:str) -> bool:
-    """
-    R9: Criteria from 4.1.9 INCOSE Guide to Writing Requirements:
-        check if text contains open-end clauses
-    """
-    clauses = [
-          "including but not limited to", "etc.", "and so on",
-    ]
-    for clause in clauses:
-        if clause in text:
-            return True
-    else:
-        return False
-    
 
-def eval_has_superfl_inf(text:str) -> bool: # revise function to check for form "to" + "a verb"
+
+def eval_has_escape_clauses(text: str) -> bool:
     """
-    R10: Criteria from 4.1.10 INCOSE Guide to Writing Requirements:
-        check if text contains superfluous infinitives
+    R8: Criteria from INCOSE Guide to Writing Requirements:
+        check if text contains escape clauses representing vague conditions
+		
+	This function evaluates whether the text includes escape clauses that might introduce vagueness into the requirement. Escape clauses like "as much as possible" or "if necessary" can imply optionality or lack of clarity in needs or requirements. The function searches for known escape clause phrases and returns False if any are found.
+	
+	Note that natural language analysis is complex, and this function provides a reasonable heuristic; thorough evaluation may require more advanced natural language processing techniques.
     """
-    superfl_inf = [
-           "to be designed to", "to be able to", "to be capable of", "to enable", "to allow"
+    # List of known escape clauses
+    escape_clauses = [
+        "so far as is possible", 
+        "as little as possible", 
+        "where possible", 
+        "as much as possible", 
+        "if it should prove necessary", 
+        "if necessary", 
+        "to the extent necessary", 
+        "as appropriate", 
+        "as required", 
+        "to the extent practical", 
+        "if practicable"
     ]
 
-    for _inf in superfl_inf:
-        if _inf in text:
-            return True
+    # Normalize the text to lowercase for case-insensitive search
+    normalized_text = text.lower()
+
+    # Check for the presence of any escape clauses
+    for clause in escape_clauses:
+        if clause in normalized_text:
+            return False  # Escape clause found, return False
+    
+    # No escape clauses detected, return True
+    return True
+
+
+
+def eval_has_no_open_ended_clauses(text: str) -> bool:
+    """
+    R9: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids open-ended clauses.
+		
+	This function evaluates whether the text contains open-ended clauses that could introduce ambiguity 
+	or vagueness in requirements. It identifies common phrases and structures that represent open-ended 
+	clauses, such as "including but not limited to", "etc.", "and so on", and similar phrases that imply 
+	the presence of additional requirements not explicitly stated. The analysis is performed using basic 
+	string matching to identify such phrases in the provided text.
+
+	Note that while this function aims to catch common open-ended clause structures, the complexity 
+	of natural language means it offers a heuristic rather than perfect detection. A deeper contextual 
+	analysis may be required for more accurate results.
+    """
+    # List of common open-ended phrases to check for
+    open_ended_phrases = [
+        "including but not limited to",
+        "etc.",
+        "and so on",
+        "such as",
+        "for example",
+        "including but not limited",
+        "and others",
+        "among others",
+        "or similar"
+    ]
+    
+    # Iterate through the phrases and check for their presence in the text
+    for phrase in open_ended_phrases:
+        if phrase in text.lower():
+            return False  # Found an open-ended clause
+
+    # If no open-ended clauses are found, return True
+    return True 
+
+
+
+def eval_has_no_superfluous_infinitives(text: str) -> bool:
+    """
+    R10: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids superfluous infinitives
+	
+	This function checks requirement statements for the presence of superfluous infinitives,
+	such as "to be designed to", "to be able to", "to be capable of", "to enable", and "to allow".
+	It uses regular expressions to identify these verb structures and returns False if any
+	are found as part of a requirement statement.
+	
+	Note that superfluous infinitives can create ambiguity regarding success criteria
+	and can be easily misinterpreted in the context of system verification.
+    """
+
+    # Define patterns for superfluous infinitives
+    superfluous_infinitives_patterns = [
+        r'\bto be designed to\b',
+        r'\bto be able to\b',
+        r'\bto be capable of\b',
+        r'\bto enable\b',
+        r'\bto allow\b'
+    ]
+    
+    # Check text against each pattern
+    for pattern in superfluous_infinitives_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return False
+    
+    # All checks passed; no superfluous infinitives found
+    return True
+
+
+
+def eval_has_separate_clauses_for_conditions(text: str) -> bool:
+    """
+    R11: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses a separate clause for each condition or qualification
+        
+    This function analyzes text to determine if it follows the requirement of using separate clauses for each condition or qualification. It works by:
+    Identifying potential indicators of multiple conditions (conjunctions, conditional markers)
+    Checking if these conditions appear to be properly separated into distinct clauses
+    Using part-of-speech tagging to count verbs as an estimate of clause boundaries
+    Returning False if it detects multiple conditions that aren't properly separated into distinct clauses
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic rather than perfect detection. More sophisticated analysis would require deeper syntactic parsing.
+    """
+    import nltk
+    from nltk.tokenize import sent_tokenize, word_tokenize
+    from nltk import pos_tag
+    import re
+    
+    # Ensure NLTK data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("averaged_perceptron_tagger")
+    
+    # Tokenize into sentences
+    sentences = sent_tokenize(text)
+    
+    for sentence in sentences:
+        # Check for multiple conditions in a single clause
+        
+        # Look for conjunction patterns that might indicate multiple conditions
+        conjunction_pattern = r"(and|or|but|as well as|along with|together with|plus)"
+        conjunctions = re.findall(conjunction_pattern, sentence.lower())
+        
+        # Look for multiple conditional markers in the same clause
+        conditional_markers = ["if", "when", "unless", "until", "provided that", "in case", "as long as"]
+        condition_count = sum(1 for marker in conditional_markers if marker in sentence.lower())
+        
+        # Check for multiple comma-separated clauses that might indicate conditions
+        comma_separated_clauses = len(re.findall(r",\s*(?:which|that|who|where|when)", sentence))
+        
+        # If we find multiple conjunctions or conditional markers, it might indicate
+        # multiple conditions not properly separated into distinct clauses
+        if len(conjunctions) > 1 or condition_count > 1 or comma_separated_clauses > 1:
+            # Further analysis to confirm if these are actually condition clauses
+            tokens = word_tokenize(sentence)
+            tagged = pos_tag(tokens)
+            
+            # Count verbs to estimate number of clauses
+            verb_tags = ["VB", "VBD", "VBG", "VBN", "VBP", "VBZ"]
+            verb_count = sum(1 for _, tag in tagged if tag in verb_tags)
+            
+            # If we have multiple conjunctions/conditions but not enough verbs
+            # to support separate clauses, it's likely conditions aren't properly separated
+            if verb_count < len(conjunctions) + condition_count:
+                return False
+    
+    # If we've checked all sentences and found no issues, return True
+    return True
+
+
+
+def eval_has_correct_grammar(text: str) -> bool:
+    """
+    R12: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses correct grammar
+        
+    This function evaluates whether a text adheres to standard grammar rules by using a grammar checking tool.
+    The implementation involves:
+    - Utilizing a language processing library that specializes in grammar checking.
+    - Designing the method to analyze sentence structure, punctuation, and phrase usage to ensure clarity and correctness.
+    
+    Note that while this function will aim to detect grammar issues, complexities in natural language may lead to some cases of ambiguity or misinterpretation.
+    This function serves as a preliminary check rather than comprehensive validation of grammar.
+    """
+    
+    import language_tool_python
+
+    # Initialize the language checker
+    tool = language_tool_python.LanguageTool('en-US')
+
+    # Check for grammar issues
+    matches = tool.check(text)
+    
+    # If there are any matches (grammar issues found), return False
+    return len(matches) == 0
+
+
+def eval_correct_spelling(
+    text: str, 
+    extra_dictionary: set = set(), 
+    check_hyphenation: bool = True, 
+    check_compound_form: bool = True
+) -> bool:
+    """
+    R13: Criteria from INCOSE Guide to Writing Requirements:
+        Use correct spelling, proper capitalization, and correct form for acronyms/hyphenation/compound words.
+        
+    This function checks if the input requirement statement uses correct English spelling, as well as
+    checks for consistent use of capitalization in acronyms and project terminology, and flags likely errors 
+    in hyphenation and compound word usage.
+    
+    Arguments:
+        text (str): The requirement statement to check.
+        extra_dictionary (set, optional): A set of project-specific words that are considered valid 
+            if not present in the English spellchecker dictionary. This accounts for technical or domain-specific vocabulary.
+            Default is None, meaning no extra words are allowed beyond standard English.
+        check_hyphenation (bool, optional): If True, also checks for inconsistent hyphenation 
+            (e.g., both "non-functional" and "nonfunctional" in the same requirement).
+            Default is True.
+        check_compound_form (bool, optional): If True, attempts to flag likely errors in compound word formation.
+            Default is True.
+            
+    Returns:
+        bool: True if the requirement is free of spelling, capitalization, and formation errors; False otherwise.
+        
+    Notes:
+        - Uses the `enchant` library (a  spellchecker) for English spelling.
+        - Attempts to detect inconsistent capitalization among acronyms and project terms
+          by checking for repeated words with mismatched case.
+        - Hyphenation/compound form checking uses simple heuristics and common patterns.
+        - For highly specialized projects, add domain-specific terms in `extra_dictionary`.
+        - Limited to English; for other languages use appropriate language dictionary.
+    """
+    import re
+    import sys
+    try:
+        from enchant import Dict # type: ignore
+    except ImportError:
+        raise ImportError("The 'enchant' library is required for this function. Install with 'pip install pyenchant'.")
+    
+    # Basic English dictionary
+    d = Dict("en_US")
+    
+    # Accept project/common engineering words if supplied
+    if extra_dictionary is None:
+        extra_dictionary = set()
     else:
+        extra_dictionary = set(map(str.lower, extra_dictionary))
+    
+    # Extract word tokens for checking
+    # Tokenizer: keep hyphenated, don't split on punctuation inside acronyms (like A-B-C)
+    word_regex = r"\b[a-zA-Z][a-zA-Z\-\']*\b"
+    words = re.findall(word_regex, text)
+    
+    # 1. Check for spelling errors, except those in extra_dictionary
+    spelling_errors = []
+    for word in words:
+        plain = word.lower()
+        # ignore single-letter variables or acronyms
+        if len(word) == 1:
+            continue
+        # If it's not in standard dictionary and not in user-supplied
+        if not d.check(word) and plain not in extra_dictionary:
+            spelling_errors.append(word)
+    if spelling_errors:
         return False
     
+    # 2. Check for inconsistent capitalization of acronyms or project terms
+    # Find all capitalized words and look for same word with different capitalization
+    found_words = set()
+    lower_to_forms = {}
+    for word in words:
+        low = word.lower()
+        if low not in lower_to_forms:
+            lower_to_forms[low] = set()
+        lower_to_forms[low].add(word)
+    inconsistent = False
+    for formset in lower_to_forms.values():
+        if len(formset) > 1:
+            # E.g., {'SYRD', 'SyRD'} or {'Requirements', 'requirements'}
+            # If all forms are the same except case, flag as inconsistent
+            upper_forms = [w for w in formset if w.isupper()]
+            mixedcase_forms = [w for w in formset if not w.isupper() and (w[0].isupper() or any(x.isupper() for x in w[1:]))]
+            if len(upper_forms) > 0 and len(mixedcase_forms) > 0:
+                inconsistent = True
+                break
+            if len(formset) > 2:  # e.g. both "requirements", "Requirements", "REQUIREMENTS"
+                inconsistent = True
+                break
+    if inconsistent:
+        return False
+    
+    # 3. Check for inconsistent hyphenation (e.g. both "non-functional" and "nonfunctional")
+    if check_hyphenation:
+        base_hyphens = {}
+        for word in words:
+            if '-' in word:
+                base = word.replace('-', '').lower()
+                base_hyphens.setdefault(base, set()).add(word)
+            else:
+                # Check if there is a hyphenated version in the same text
+                base = word.lower()
+                if base in base_hyphens:
+                    base_hyphens[base].add(word)
+        for variants in base_hyphens.values():
+            if len(variants) > 1:
+                return False
+    
+    # 4. Check for likely problematic compound words (simple heuristic)
+    # Examples: "ice-cream", "ice cream", "icecream" -- must be used consistently
+    # Use a list of common compound word components
+    if check_compound_form:
+        comp_pattern = re.compile(r"\b([a-zA-Z]+)[\-\s]?([a-zA-Z]+)\b")
+        word_pairs = comp_pattern.findall(text)
+        pair_forms = {}
+        for w1, w2 in word_pairs:
+            for f in [(w1, w2), (w2, w1)]:
+                joined = (f[0] + f[1]).lower()
+                hyphenated = (f[0] + '-' + f[1]).lower()
+                spaced = (f[0] + ' ' + f[1]).lower()
+                found_forms = set()
+                if joined in text.lower():
+                    found_forms.add('joined')
+                if hyphenated in text.lower():
+                    found_forms.add('hyphen')
+                if spaced in text.lower():
+                    found_forms.add('spaced')
+                if len(found_forms) > 1:
+                    return False  # inconsistent use of compounding
+    
+    return True
 
-def eval_has_combinators(text:str) -> bool: # revise function to check for form "to" + "a verb"
+
+
+
+def eval_correct_punctuation(text: str) -> bool:
     """
-    R19: Criteria from 4.4.2 INCOSE Guide to Writing Requirements:
-        check if text contains  words that join or combine clauses
+    R14: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses correct punctuation.
+        
+    This function evaluates whether the text contains proper punctuation according to standard English 
+    punctuation rules. It looks for common punctuation issues, such as misused commas, periods, 
+    and other punctuation marks that could cause confusion. It also checks for proper placement of 
+    punctuation marks in relation to conjunctions and clauses. 
+
+    Note that while this function employs basic rules to gauge punctuation correctness, more complex 
+    punctuation checking would require advanced grammar parsing or NLP techniques.
     """
+    
+    import re
+
+    # Define a pattern for erroneous comma usage
+    # Matches a comma followed immediately by a lowercase letter (indicating a possible error)
+    comma_usage_pattern = re.compile(r",\s*[a-z]")
+    
+    # Check for patterns such as inappropriate use of semi-colons, colons, and ellipses
+    semicolon_pattern = re.compile(r";[^\s]")
+    colon_pattern = re.compile(r":[^\s]")
+    ellipsis_pattern = re.compile(r"\.\s*\.")
+    
+    # List stores error findings
+    errors = []
+
+    # Split the text into sentences based on basic punctuation
+    sentences = re.split(r'(?<=[.!?]) +', text)
+    
+    for sentence in sentences:
+        # Check for incorrect comma usage
+        if re.search(comma_usage_pattern, sentence):
+            errors.append("Incorrect comma usage found.")
+
+        # Check for improper semicolon usage
+        if re.search(semicolon_pattern, sentence):
+            errors.append("Improper semicolon usage found.")
+        
+        # Check for improper colon usage
+        if re.search(colon_pattern, sentence):
+            errors.append("Improper colon usage found.")
+        
+        # Check for repeated ellipsis usage
+        if re.search(ellipsis_pattern, sentence):
+            errors.append("Repeated ellipsis found.")
+    
+    # If any errors are found, punctuation is incorrect
+    return len(errors) == 0
+
+
+
+def eval_logical_expressions(text: str) -> bool:
+    """
+    R15: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses logical expressions properly
+		
+    This function evaluates whether the text adheres to the defined conventions for expressing logical expressions.
+    It checks for the following:
+    1. Logical expressions are enclosed in square brackets, e.g., �[X AND Y]�.
+    2. Conjunctions like "AND", "OR", "XOR", and "NOT" are used in uppercase.
+    3. Avoids using "and" in a manner that combines two separate thoughts rather than conditions.
+    4. Validates that the statements remain as singular thoughts with appropriate logical conditions.
+
+    Note that natural language analysis is complex, and this function provides reasonable heuristics rather than perfect detection.
+    More sophisticated analysis would require deeper syntactic parsing.
+    """
+
+    # Define logical expression patterns
+    logical_expression_pattern = r"\[.*?\]"
+    conjunctions_pattern = r"\b(AND|OR|XOR|NOT)\b"
+
+    # Split text into sentences
+    sentences = sent_tokenize(text)
+
+    for sentence in sentences:
+        # Check for any logical expressions
+        logical_expressions = re.findall(logical_expression_pattern, sentence)
+
+        # If there are logical expressions, ensure they are formatted correctly
+        for expr in logical_expressions:
+            # Check if all conjunctions within the expression are in uppercase
+            if not re.search(conjunctions_pattern, expr):
+                return False
+            
+            # Ensure that the expression is formatted with square brackets
+            if not (expr.startswith('[') and expr.endswith(']')):
+                return False
+            
+            # Check if logical symbols are used properly inside expressions
+            inner_content = expr[1:-1].strip()  # Remove the brackets
+            if any(word.lower() == 'and' for word in inner_content.split()):
+                # Check that we do not combine separate thoughts
+                # There should not be "and" outside logical expressions
+                if "and" in sentence.lower() and expr not in sentence:
+                    return False
+
+    # Perform final checks on any remaining text beyond logical expressions
+    # Ensuring other conjunction usage does not create confusion
+    if re.search(r"\band\b|\bor\b", text.lower()):
+        return False
+
+    return True
+
+
+
+def eval_uses_not(text: str) -> bool:
+    """
+    R16: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids the use of the word "not"
+		
+    This function evaluates whether the requirement text contains the word "not". The presence of "not" implies a negative action 
+    or condition that complicates verification. A requirement statement should be positive and clearly specify what the system 
+    is required to do rather than what it should not do. This function returns False if "not" is found in the text, indicating 
+    that the requirement does not meet the stated guideline.
+
+    The check is case-insensitive and looks for the word "not" in various contexts to ensure comprehensive coverage. 
+    """
+    # Check for presence of the word "not" in the text
+    if 'not' in text.lower():
+        return False
+        
+    # If "not" is not present, return True
+    return True
+
+
+
+def eval_no_oblique_symbol(text: str) -> bool:
+    """
+    R17: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids the oblique ("/") symbol
+        
+    This function checks whether the provided text contains the oblique symbol ("/") and verifies that it is used in an acceptable context (e.g., units, symmetrical ranges, ratios). 
+    It analyzes the text to ensure the oblique symbol is not used in a way that leads to ambiguity or misunderstanding of stakeholder needs.
+    """
+    # Define acceptable uses of the oblique symbol
+    acceptable_contexts = [
+        r"\bkm/h\b",          # units of speed
+        r"\b[+/-]\s?\d+\s?[a-zA-Z]+\b",  # symmetrical range (e.g., +/- 5 degrees F)
+        r"\b\d+/[\d]+\b"     # ratios or fractions (e.g., 1/16)
+    ]
+    
+    # Check for the presence of the oblique symbol
+    if "/" in text:
+        # Check for contexts where the oblique symbol is acceptable
+        for context in acceptable_contexts:
+            if re.search(context, text):
+                # If an acceptable context is found, we can allow it
+                break
+        else:
+            # If no acceptable context was found, return False
+            return False
+            
+    # If there's no oblique symbol or it's used correctly, return True
+    return True
+
+
+
+def eval_is_singular_statement(text: str) -> bool:
+    """
+    R18: Criteria from INCOSE Guide to Writing Requirements:
+        check if text contains a singular statement (one thought)
+        
+    This function evaluates whether text contains a singular statement (one thought) by analyzing the use of conjunctions 
+    like "and" and "or". It distinguishes between:
+
+    Acceptable uses of conjunctions in logical conditions (e.g., "The system shall activate when X is true AND Y is false")
+    Unacceptable uses that join multiple thoughts (e.g., "The system shall process data AND generate reports").
+    The implementation uses part-of-speech tagging to identify verbs and subjects, helping determine if conjunctions are 
+    joining separate clauses (indicating multiple thoughts) or just elements within a single thought. It also looks for logical 
+    condition indicators and operators that would make conjunction use acceptable.
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic rather than perfect detection. 
+    More sophisticated analysis would require deeper syntactic parsing.
+    """
+    
+    def is_logical_condition(tagged, conj_idx):
+        """
+        Check if the conjunction is part of a logical condition expression
+        """
+        # Look for logical condition indicators
+        logical_indicators = ["if", "when", "while", "unless", "until"]
+        
+        # Check for logical indicators before the conjunction
+        for i in range(max(0, conj_idx - 10), conj_idx):
+            if tagged[i][0].lower() in logical_indicators:
+                return True
+                
+        # Check for parentheses or brackets which might indicate logical grouping
+        before_conj = " ".join([word for word, _ in tagged[:conj_idx]])
+        if "(" in before_conj or "[" in before_conj:
+            return True
+            
+        # Check for logical operators nearby (AND, OR, XOR, NOT in all caps)
+        for i in range(max(0, conj_idx - 3), min(len(tagged), conj_idx + 3)):
+            if tagged[i][0] in ["AND", "OR", "XOR", "NOT"]:
+                return True
+            
+        return False
+
+    def is_joining_thoughts(tagged, conj_idx):
+        """
+        Check if the conjunction is joining two separate thoughts/statements
+        """
+        # Count verbs before and after conjunction to see if we have multiple clauses
+        verbs_before = 0
+        verbs_after = 0
+        
+        # Verb POS tags
+        verb_tags = ["VB", "VBD", "VBG", "VBN", "VBP", "VBZ"]
+        
+        # Count verbs before conjunction
+        for i in range(conj_idx):
+            if tagged[i][1] in verb_tags:
+                verbs_before += 1
+                
+        # Count verbs after conjunction
+        for i in range(conj_idx + 1, len(tagged)):
+            if tagged[i][1] in verb_tags:
+                verbs_after += 1
+        
+        # If we have verbs both before and after, it might be joining thoughts
+        if verbs_before > 0 and verbs_after > 0:
+            # Check for subject-verb pairs on both sides (indicating separate clauses)
+            has_subject_before = False
+            has_subject_after = False
+            
+            # Subject POS tags (simplified)
+            subject_tags = ["NN", "NNS", "NNP", "NNPS", "PRP"]
+            
+            # Check for subjects before conjunction
+            for i in range(conj_idx):
+                if tagged[i][1] in subject_tags:
+                    has_subject_before = True
+                    break
+                    
+            # Check for subjects after conjunction
+            for i in range(conj_idx + 1, len(tagged)):
+                if tagged[i][1] in subject_tags:
+                    has_subject_after = True
+                    break
+            
+            # If we have subject-verb pairs on both sides, it's likely joining thoughts
+            if has_subject_before and has_subject_after:
+                return True
+        
+        return False
+    
+    # Ensure NLTK data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("averaged_perceptron_tagger")
+    
+    # Split into sentences
+    sentences = sent_tokenize(text)
+    
+    for sentence in sentences:
+        # Tokenize and tag parts of speech
+        tokens = word_tokenize(sentence)
+        tagged = pos_tag(tokens)
+        
+        # Find all instances of "and", "or", etc.
+        conjunctions = []
+        for i, (word, tag) in enumerate(tagged):
+            if word.lower() == "and" or word.lower() == "or":
+                conjunctions.append((i, word.lower()))
+        
+        # If no conjunctions, the sentence is likely singular
+        if not conjunctions:
+            continue
+            
+        # Check each conjunction to determine if it's joining thoughts or conditions
+        for conj_idx, conj_word in conjunctions:
+            # Check if this is a logical condition (acceptable use)
+            if is_logical_condition(tagged, conj_idx):
+                continue
+                
+            # Check if this conjunction is joining two separate thoughts (not acceptable)
+            if is_joining_thoughts(tagged, conj_idx):
+                return False
+    
+    # If we've checked all sentences and found no issues, it's a singular statement
+    return True
+
+
+
+def eval_has_combinators(text: str) -> bool:
+    """
+    R19: Criteria from INCOSE Guide to Writing Requirements:
+        check if text contains combinators that join or combine clauses
+        
+    This function evaluates whether a requirement statement contains words that join or 
+    combine clauses, as this usually indicates the presence of multiple thoughts within the 
+    statement, violating the guideline of single thoughts. The function searches for common 
+    combinators and returns False if any are found, indicating that the requirement needs 
+    separation into distinct statements or should be expressed as a logical condition.
+
+    Note that natural language analysis is always subject to interpretation, and this 
+    function aims to provide a clear heuristic for identifying combinators.
+    """
+    # List of combinators that should not be present in the requirement statement
     combinators = [
-            "and", "or", "then", "unless", "but", "as well as", "but also", 
-            "however", "whether", "meanwhile", "whereas", "on the other hand",
-            "otherwise"
+        "and", "or", "then", "unless", "but",
+        "as well as", "but also", "however", 
+        "whether", "meanwhile", "whereas", 
+        "on the other hand", "otherwise"
     ]
-    text = text.split()
-    for comb in combinators:
-        if comb in text:
+    
+    # Normalize the text to lower case for consistent comparison
+    text_lower = text.lower()
+    
+    # Check for the presence of each combinator in the text
+    for combinator in combinators:
+        if combinator in text_lower:
+            return False  # Found a combinator, return False
+            
+    # If no combinators are found, return True
+    return True
+
+
+
+def eval_avoids_purpose_phrases(text: str) -> bool:
+    """
+    R20: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids phrases indicating the purpose, intent, or reason for the need or requirement.
+        
+    This function evaluates whether a requirement statement contains phrases that indicate the purpose, intent, or reason associated
+    with the statement. Phrases to avoid include "to", "in order to", "so that", and "thus allowing". The requirement statements
+    should be concise and focus on what is being required without providing an explanation for why it is necessary.
+
+    The implementation scans the text for the presence of any of the specified phrases; if any are found, the function returns False,
+    indicating that the statement does not comply with R20 guidelines. If no such phrases are detected, the function returns True.
+    """
+    # List of phrases to avoid in requirement statements
+    purpose_phrases = [
+        "to",
+        "in order to",
+        "so that",
+        "thus allowing",
+        "for the purpose of",
+        "intent of",
+        "reason for"
+    ]
+    
+    # Normalize the text to lower case for case-insensitive comparison
+    lower_text = text.lower()
+    
+    # Check for each phrase in the text
+    for phrase in purpose_phrases:
+        if phrase in lower_text:
+            return False  # Found an unacceptable phrase
+    
+    return True  # No unacceptable phrases found
+
+
+
+def eval_avoids_parentheses(text: str) -> bool:
+    """
+    R21: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids parentheses and brackets containing subordinate text
+
+    This function checks whether the requirement statement text contains any parentheses "()" or brackets "[]".
+    According to R21, subordinate information in parentheses/brackets should instead be expressed in the rationale attribute.
+    The function returns False if such characters are found, unless they are used as part of a well-documented, project-specific convention.
+    
+    If you wish to allow certain explicit patterns (e.g., for units, as allowed by project conventions), you may extend the function with an 
+    allowlist. For simplicity and safety, this implementation flags ANY parentheses or brackets as a violation.
+
+    Args:
+        text (str): The requirement statement to evaluate.
+
+    Returns:
+        bool: True if text avoids parentheses and brackets, False otherwise.
+    """
+    import re
+    # Look for parentheses or brackets containing text
+    if re.search(r"\([^\)]*\)", text) or re.search(r"\[[^\]]*\]", text):
+        return False
+    return True
+
+
+def eval_explicit_enumeration(text: str, group_nouns: list = [None]) -> bool:
+    """
+    R22: Criteria from INCOSE Guide to Writing Requirements:
+        Check if sets or groups are explicitly enumerated, not named with ambiguous group nouns.
+    
+    This function detects likely usage of ambiguous group nouns (e.g., "systems," "components," "devices," "users," "features," etc.)
+    in a requirement statement without explicit enumeration of the set's members.
+    When such a noun appears, it attempts to determine if all individual members are enumerated (e.g., "A, B, and C") or 
+    if the requirement leaves membership implicit (e.g., "All devices shall...").
+    
+    Args:
+        text (str): The requirement statement to evaluate.
+        group_nouns (list, optional): List of group nouns to check for. If None, a default list of common ones is used.
+                                      You may customize/group-domain-specific terms.
+                                      Defaults to ["systems", "components", "modules", "devices", "units",
+                                                  "features", "functions", "elements", "objects", "entities",
+                                                  "subsystems", "teams", "interfaces", "inputs", "outputs",
+                                                  "requirements", "services", "users", "stakeholders"].
+                                      
+    Returns:
+        bool: True if sets/groups are explicitly enumerated, False if group nouns are used without enumeration.
+    """
+    import re
+    import nltk
+    from nltk.tokenize import sent_tokenize, word_tokenize
+
+    # Suggested group noun default reflects common terms in requirements.
+    if group_nouns is None:
+        group_nouns = [
+            "systems", "components", "modules", "devices", "units",
+            "features", "functions", "elements", "objects", "entities",
+            "subsystems", "teams", "interfaces", "inputs", "outputs",
+            "requirements", "services", "users", "stakeholders"
+        ]
+
+    # Download NLTK resources, if needed
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
+
+    # Helper: is a word followed by explicit list? (e.g., "systems: A, B, and C")
+    def _is_explicitly_enumerated(sentence, noun):
+        # Look for: noun : A, B, and C  or noun (A, B, C)
+        pattern1 = r"\b{}\b\s*:\s*([^\.]+)".format(re.escape(noun))
+        pattern2 = r"\b{}\b\s*\(([^)]+)\)".format(re.escape(noun))
+        # Also: "such as A, B, and C" / "including A, B and C"
+        pattern3 = r"\b{}\b[^\.]*(?:such as|including)\s+([^\.]+)".format(re.escape(noun))
+
+        text = sentence
+        match = re.search(pattern1, text, re.IGNORECASE)
+        if match and "," in match.group(1):
             return True
+        match = re.search(pattern2, text, re.IGNORECASE)
+        if match and "," in match.group(1):
+            return True
+        match = re.search(pattern3, text, re.IGNORECASE)
+        if match and "," in match.group(1):
+            return True
+        return False
+    
+    # Split into sentences, as enumeration often done at sentence level.
+    sentences = sent_tokenize(text)
+    for sentence in sentences:
+        tokens = word_tokenize(sentence)
+        tokens_lower = [w.lower() for w in tokens]
+        for noun in group_nouns:
+            if (noun.lower() in tokens_lower) and (noun is not None):
+                # If an enumeration follows, it's acceptable.
+                if _is_explicitly_enumerated(sentence, noun):
+                    continue
+                # Also accept lists with "A, B, and C" pattern before main verb
+                # Simpler pattern: look for location in the tokens
+                idx = tokens_lower.index(noun.lower())
+                lookahead = tokens_lower[idx + 1 : idx + 8]
+                # If ":", "(", "such as", "including" within next 6 tokens, likely enumeration
+                if ":" in lookahead or "(" in lookahead or "such" in lookahead or "including" in lookahead:
+                    continue
+                # Otherwise, ambiguous group noun usage: reject
+                return False
+    return True
+
+
+def eval_has_supporting_diagram_or_model_reference(
+    text: str,
+    diagram_terms: list = [None]
+) -> bool:
+    """
+    R23: Criteria from INCOSE Guide to Writing Requirements:
+        Checks whether a requirement statement referring to complex behavior
+        mentions or references a supporting diagram, model, or ICD.
+
+    This function detects whether the requirement statement contains a reference 
+    to a supporting diagram, drawing, model, figure, or interface control document (ICD).
+    This is important when the requirement is related to complex behavior�such as describing
+    multiple correlated quantitative characteristics (e.g., magnitude, rise time, etc.)�
+    and should reference supporting material instead of listing many values in text.
+
+    Arguments:
+        text (str): The requirement statement to analyze.
+        diagram_terms (list, optional): List of terms and abbreviations (such as "diagram",
+            "figure", "drawing", "model", "ICD", "see Figure", "see Drawing", etc.)
+            to match as supporting reference indicators. 
+            Defaults to a set of typical diagram/model/ICD reference terms and abbreviations
+            commonly used in engineering requirements:
+            [
+                "diagram", "drawing", "figure", "table", "model", "icd",
+                "interface control document", "see diagram", "see drawing", "see figure",
+                "see model", "see icd", "as shown in", "per diagram", "per drawing",
+                "per figure", "shown in", "refer to", "refers to", "according to",
+                "defined in", "specified in", "illustrated in", "tabulated in"
+            ].
+            Add or customize entries to align with your organization's conventions.
+
+    Returns:
+        bool: True if a reference to a supporting diagram, model, or ICD is detected;
+              False otherwise.
+
+    Note:
+        This function makes no attempt to judge the complexity of the requirement,
+        only whether a reference to a supporting entity (diagram/model/ICD/etc.)
+        is present in the statement.
+
+        If diagram_terms is not provided, a reasonable default is used as described above.
+    """
+    import re
+
+    if diagram_terms is [None]:
+        diagram_terms = [
+            "diagram", "drawing", "figure", "table", "model", "icd",
+            "interface control document", "see diagram", "see drawing", "see figure",
+            "see model", "see icd", "as shown in", "per diagram", "per drawing",
+            "per figure", "shown in", "refer to", "refers to", "according to",
+            "defined in", "specified in", "illustrated in", "tabulated in"
+        ]
+
+    # Prepare a regex pattern for matching supporting reference expressions
+    # Use word boundaries to avoid partial matches (e.g., "model" in "modeled")
+    term_patterns = [r"\b{}\b".format(re.escape(term.lower())) for term in diagram_terms]
+    combined_pattern = re.compile("|".join(term_patterns), re.IGNORECASE)
+
+    return bool(combined_pattern.search(text))
+
+
+
+def eval_avoid_pronouns(text: str) -> bool:
+    """
+    R24: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids personal and indefinite pronouns
+        
+    This function evaluates whether a requirement statement or need statement avoids the use of personal and indefinite pronouns 
+    to ensure clarity and prevent ambiguity. The function works by:
+    - Identifying and counting the occurrences of problematic pronouns (personal and indefinite) in the text
+    - Returning False if any prohibited pronouns are found
+    - Returning True if no such pronouns are present, indicating compliance with the requirement.
+
+    Note that this is a heuristic approach to identify pronouns and may not cover every possible edge case of language usage.
+    """
+
+    # List of personal pronouns to avoid
+    personal_pronouns = ["it", "this", "that", "he", "she", "they", "them", "him", "her"]
+    
+    # List of indefinite pronouns to avoid
+    indefinite_pronouns = [
+        "all", "another", "any", "anybody", "anything", "both", "each", "either",
+        "every", "everybody", "everyone", "everything", "few", "many", "most", 
+        "much", "neither", "no one", "nobody", "none", "one", "several", "some", 
+        "somebody", "someone", "something", "such"
+    ]
+    
+    # Combine the lists for checking
+    prohibited_pronouns = set(personal_pronouns + indefinite_pronouns)
+    
+    # Tokenize the input text into words
+    words = text.lower().split()
+    
+    # Check for presence of any prohibited pronouns
+    for word in words:
+        if word in prohibited_pronouns:
+            return False
+    
+    # If no prohibited pronouns were found, return True
+    return True
+
+
+def eval_is_independent_of_heading(text: str, heading: str = "") -> bool:
+    """
+    R25: Criteria from INCOSE Guide to Writing Requirements:
+        Check if the requirement statement is understandable and complete without referring to the section or heading.
+    
+    This function determines whether the given requirement statement (`text`) is self-contained and does not rely on a given heading (`heading`) for meaning or context.
+    The check is heuristic: it detects if the heading (or the main noun/root words from the heading) are referenced in a way that, if the statement were read without the heading, would leave the reader confused as to the subject, object, or context.
+    
+    By default, `heading` is empty ("") so stand-alone statements can be analyzed. 
+    If evaluating requirements as they appear under a document heading, supply the heading as argument.
+    This allows for checking if the requirement relies on the heading for clarity. 
+    If heading is not provided, assumes self-contained analysis.
+    
+    Args:
+        text (str): The requirement statement.
+        heading (str, optional): The heading or title under which the requirement appears. Defaults to "".
+
+    Returns:
+        bool: True if requirement is self-contained and understandable without the heading, False otherwise.
+    """
+    import re
+    import nltk
+    from nltk.tokenize import word_tokenize
+    from nltk.corpus import stopwords
+    from nltk.stem import WordNetLemmatizer
+
+    # Attempt to download necessary NLTK data if not present
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("corpora/stopwords")
+        nltk.data.find("corpora/wordnet")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("stopwords")
+        nltk.download("wordnet")
+
+    if not heading.strip():
+        # No heading given, assume statement should be self-contained
+        # Heuristic: statement must have at least a subject and main verb
+        tokens = word_tokenize(text)
+        if len(tokens) < 4:
+            return False  # Too short to be self-contained
+        # Check for explicit subject (noun/pronoun) and main verb
+        tagged = nltk.pos_tag(tokens)
+        has_subject = any(t in ['NN', 'NNS', 'NNP', 'NNPS', 'PRP', 'DT'] for _, t in tagged)
+        has_verb = any(t.startswith('VB') for _, t in tagged)
+        return has_subject and has_verb
+
+    # If heading provided, extract major root words from heading and check for references in text
+    stop_words = set(stopwords.words('english')).union({'requirement', 'specification', 'section', 'part', 'statement'})
+    lemmatizer = WordNetLemmatizer()
+    heading_tokens = word_tokenize(heading)
+    heading_words = [lemmatizer.lemmatize(w.lower()) for w in heading_tokens if re.match(r"\w+", w) and w.lower() not in stop_words]
+    heading_words = set(heading_words)
+
+    # Heuristic 1: Does the requirement begin with a pronoun ("it", "this", "these", etc.)?
+    anaphora = {"it", "they", "them", "this", "those", "these", "their", "its"}
+    first_tokens = word_tokenize(text.lower())
+    if first_tokens and first_tokens[0] in anaphora:
+        return False
+
+    # Heuristic 2: Are there blank/underspecified subjects or objects?
+    # Search for standalone verbs at start (e.g., "Must comply...", "Shall ensure...") without explicit system/subject
+    tagged = nltk.pos_tag(word_tokenize(text))
+    # Looking for a noun or pronoun within the first 5 words
+    has_subject = any(t in ['NN', 'NNS', 'NNP', 'NNPS', 'PRP', 'DT'] for _, t in tagged[:6])
+    if not has_subject:
+        return False
+
+    # Heuristic 3: Is there a direct reference to the heading's key concept(s) in the requirement statement?
+    for h_word in heading_words:
+        # If the heading word is not present in the requirement text, that's BAD if the meaning depends on it
+        if h_word not in [lemmatizer.lemmatize(w.lower()) for w in word_tokenize(text)]:
+            # To be cautious, we additionally check if the requirement text contains "the above", "the [heading]...", "such [heading]...", etc.
+            heading_phrase_in_text = re.search(rf"\b(the|such|above)\s+{re.escape(h_word)}\b", text.lower())
+            if heading_phrase_in_text:
+                return False
+    # Passed all checks -- text is understandable without the heading
+    return True
+
+
+
+def eval_avoids_absolutes(text: str) -> bool:
+    """
+    R26: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids using unachievable absolutes
+		
+	This function evaluates whether a requirement statement contains absolutes such as �100% availability�, 
+	�all�, �every�, �always�, and �never�. The detection process includes:
+	
+	Identifying absolute terms within the text that are not feasible or verifiable.
+	Returning False if any absolute terms are found, indicating the requirement is not feasible, verifiable, or correct.
+	
+	It employs a simple keyword matching approach to find these terms in the text.
+    """
+    
+    # List of absolute terms to check for
+    absolute_terms = [
+        "100%", "all", "every", "always", "never", 
+        "none", "forever", "entirely", "totally", 
+        "absolutely", "completely"
+    ]
+    
+    # Normalize text to lower case for case insensitive matching
+    text_lower = text.lower()
+    
+    # Check if any absolute terms are found in the text
+    for term in absolute_terms:
+        if term in text_lower:
+            return False  # Found an absolute term
+    
+    # If no absolutes are found, return True
+    return True
+
+
+
+def eval_has_explicit_conditions(text: str) -> bool:
+    """
+    R27: Criteria from INCOSE Guide to Writing Requirements:
+        check if conditions' applicability is stated explicitly within the requirement statement
+
+    This function analyzes the text to determine if it explicitly includes conditions that apply to the requirements.
+    It identifies the presence of phrases indicating conditions such as "if", "when", "unless", etc. 
+    The function aims to ensure that every need or requirement statement clearly states its applicability condition, 
+    which is vital for verifiability and correctness.
+
+    The implementation uses regular expressions to locate condition indicators and checks if they are distinctly 
+    articulated within the requirement statement.
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic rather than perfect detection.
+    More sophisticated analysis would require deeper syntactic and semantic parsing.
+    """
+    import re
+
+    # Define pattern for common condition indicators
+    condition_indicators = r"\b(if|when|unless|provided that|in case|as long as)\b"
+    condition_pattern = re.compile(condition_indicators, re.IGNORECASE)
+
+    # Split the text into sentences
+    sentences = text.split('.')
+    
+    for sentence in sentences:
+        # If a condition indicator is present, ensure it is stated explicitly
+        if condition_pattern.search(sentence):
+            # Look for the main action/verb in the statement
+            if not re.search(r"\bshall\b|\bmust\b|\bshould\b", sentence, re.IGNORECASE):
+                return False
+
+    # If we find no issues, all sentences clearly state their conditions
+    return True
+
+
+
+def eval_has_explicit_conditions_for_single_action(text: str) -> bool:
+    """
+    R28: Criteria from INCOSE Guide to Writing Requirements:
+        check if text explicitly expresses conditions for a single action
+		
+    This function evaluates whether the requirement statement clearly distinguishes between multiple conditions for a single action. 
+    It aims to determine:
+
+    - If multiple conditions are stated, they should either be conjoined (all must hold true) or disjoined (any one can hold true), 
+      and the language used should make this explicit.
+    - It checks for common conjunctions (and/or) and disjunctions in the text.
+    - It ensures that the requirement is not ambiguous about whether all conditions are necessary or if any one condition suffices.
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic rather than perfect detection. 
+    More sophisticated analysis would require deeper syntactic parsing.
+    """
+    # Ensure NLTK data is available
+    try:
+        nltk.data.find("tokenizers/punkt")
+        nltk.data.find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("punkt")
+        nltk.download("averaged_perceptron_tagger")
+
+    # Tokenize into sentences
+    sentences = sent_tokenize(text)
+    
+    for sentence in sentences:
+        # Check for conjunctions indicating multiple conditions
+        conjunctions = re.findall(r'\b(and|or|but)\b', sentence.lower())
+        
+        if len(conjunctions) > 1:
+            # More than one conjunction suggests multiple conditions
+            # Determine if they are conjunctions (AND) or disjunctions (OR)
+            conjunction_types = {'and': [], 'or': [], 'but': []}
+            for conj in conjunctions:
+                conjunction_types[conj].append(conj)
+            
+            # Check if conditions are explicitly stated as either all must be true or any one
+            has_conjunction = 'and' in conjunction_types and len(conjunction_types['and']) > 0
+            has_disjunction = 'or' in conjunction_types and len(conjunction_types['or']) > 0
+            
+            if has_conjunction and has_disjunction:
+                # Ambiguous if both conjunctions and disjunctions are present
+                return False
+            
+            # If we only have 'and', it must make it clear that all must hold, similarly for 'or'
+            if (has_conjunction and conjunction_types['and'][0] not in sentence) or \
+               (has_disjunction and conjunction_types['or'][0] not in sentence):
+                return False
+    
+    # If checked all sentences and found no ambiguity, return True
+    return True
+
+
+
+def classify_requirement_type(text: str) -> str:
+    """
+    R29: Criteria from INCOSE Guide to Writing Requirements:
+        classify needs and requirements according to their type or category.
+    
+    This function classifies needs and requirements by analyzing the text 
+    to identify keywords and phrases that correspond to predefined 
+    types or categories. This helps to group requirements, identify 
+    potential duplications or conflicts, and assist in ensuring completeness 
+    of the requirement set.
+    
+    The function operates by:
+    - Defining a set of categories based on common types of needs or requirements.
+    - Searching the input text for keywords related to these categories.
+    - Returning the identified category or a message indicating that no category was found.
+
+    The typical types/categories may include:
+    - "performance" for performance-related requirements
+    - "quality" for quality attributes
+    - "compliance" for adherence to standards
+    - "fit" for form and fit requirements
+    - "maintenance" for maintenance-related needs
+    
+    Note: The function assumes that the input text does not contain multiple 
+    distinct categories and only returns the first matching category found.
+    """
+
+    # Define the types/categories and their corresponding keywords
+    categories = {
+        "performance": ["performance", "speed", "efficiency", "throughput"],
+        "quality": ["quality", "reliability", "availability", "durability"],
+        "compliance": ["compliant", "regulation", "standard", "guideline"],
+        "fit": ["size", "dimensions", "form", "fit"],
+        "maintenance": ["maintenance", "serviceability", "repair", "support"]
+    }
+    
+    # Normalize text to lower case for case-insensitive matching
+    normalized_text = text.lower()
+
+    # Search for matching keywords in the input text
+    for category, keywords in categories.items():
+        for keyword in keywords:
+            if keyword in normalized_text:
+                return category  # Return the identified category
+    
+    # If no matches are found, return a default message
+    return "No category found for the provided requirement statement."
+
+
+    """
+    R30: Criteria from INCOSE Guide to Writing Requirements:
+        Checks if the given requirement statement is a unique expression.
+
+    This function assesses whether the provided requirement statement is unique
+    with respect to a collection of existing requirements. It performs two checks:
+      - Exact duplicate detection: Returns False if the same statement already exists (case-insensitive).
+      - Semantic similarity detection: Uses a bag-of-words TF-IDF cosine similarity metric to identify
+        near-duplicates or closely paraphrased requirements by measuring semantic overlap.
+    The similarity threshold can be adjusted: a float in [0,1] where higher values are stricter.
+
+    Arguments:
+        text (str): The requirement statement to be checked.
+        existing_statements (list, optional): A list of requirement statements representing the requirements already collected. If None (the default), only the single text is considered and always returns True. This parameter allows reuse for database or spreadsheet integration.
+        similarity_threshold (float, optional): Cosine similarity threshold for detecting duplicates in meaning.
+            Defaults to 0.85, which is typical for high-confidence paraphrase detection.
+
+    Returns:
+        bool: True if the text is not a duplicate and not substantially similar to any in the existing_statements list.
+              False otherwise.
+
+    Reasoning for default values:
+        - existing_statements=None: If no list provided, the function always returns True, which is appropriate when checking a stand-alone entry or beginning a new collection.
+        - similarity_threshold=0.85: Value 0.85 is widely used in NLP as a reasonable value to flag near-duplicates or paraphrases, balancing false positives and negatives.
+
+    Notes:
+        - For best results, existing_statements should be short and well-edited requirement statements, as per INCOSE style.
+        - This function uses scikit-learn's TfidfVectorizer and cosine similarity. For large collections, more advanced solutions (e.g., sentence-transformers) are available.
+        - This function assumes requirements are in English.
+
+    Example usage:
+        is_unique = eval_is_unique_expression("The system shall generate a user report.", existing_statement_list)
+    """
+
+
+def eval_is_unique_expression(text: str, existing_statements: list = [None], similarity_threshold: float = 0.85) -> bool:
+    import re
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+    except ImportError:
+        raise ImportError("scikit-learn is required for eval_is_unique_expression.")
+
+    if existing_statements is [None] or len(existing_statements) == 0:
+        return True
+
+    # Normalize whitespace and lowercase for exact duplicate comparison
+    norm_text = " ".join(text.lower().split())
+    norm_existing = [" ".join(req.lower().split()) for req in existing_statements]
+
+    if norm_text in norm_existing:
+        return False  # Exact duplicate found
+
+    def basic_clean(s):
+        return re.sub(r"[^\w\s]", " ", s).lower()
+
+    all_statements = norm_existing + [norm_text]
+    cleaned = [basic_clean(s) for s in all_statements]
+    vectorizer = TfidfVectorizer(stop_words="english")
+    tfidf_matrix = vectorizer.fit_transform(cleaned)
+
+    target_vec = tfidf_matrix.getrow(tfidf_matrix.shape[0] - 1)
+    others_matrix = tfidf_matrix[:tfidf_matrix.shape[0] - 1] # type: ignore
+    similarities = cosine_similarity(target_vec, others_matrix)[0]
+
+    if any(sim >= similarity_threshold for sim in similarities):
+        return False
+
+    return True
+
+def eval_is_solution_free(text: str) -> bool:
+    """
+    R31: Criteria from INCOSE Guide to Writing Requirements:
+        check if the text is free from implementation or design output statements.
+        
+    This function evaluates whether the requirement statement avoids describing the implementation (how) 
+    and instead focuses on what the system needs to do (what). It aims to identify phrases indicating 
+    design outputs or specific solutions that are not appropriate in need or requirement statements. 
+    The implementation checks for specific keywords and phrases that typically indicate solution-focused 
+    writing.
+
+    Note that natural language analysis is complex, and this function provides a reasonable heuristic 
+    rather than perfect detection. More sophisticated analysis may be required for deeper insights.
+    """
+    # List of keywords or phrases associated with implementation statements
+    implementation_keywords = [
+        "use", "implement", "apply", "deploy", "design", 
+        "create", "develop", "build", "constructed", "program", 
+        "hardware", "software", "solution", "architecture"
+    ]
+    
+    # Tokenize the text into sentences
+    sentences = sent_tokenize(text)
+    
+    for sentence in sentences:
+        # Check for any implementation keywords in the sentence
+        if any(keyword in sentence.lower() for keyword in implementation_keywords):
+            return False  # Indicates that the sentence contains implementation details
+    
+    # If no sentences contain implementation statements, return True
+    return True
+
+
+
+def eval_uses_universal_qualification(text: str) -> bool:
+    """
+    R32: Criteria from INCOSE Guide to Writing Requirements:
+        check if text uses "each" instead of "all", "any", or "both"
+        
+    This function evaluates whether a requirement statement correctly uses the term "each" for universal quantification instead of "all", "any", or "both". It accomplishes this by:
+    - Searching for the presence of the terms "all", "any", or "both" in the text.
+    - Returning False if any of these terms are found, indicating that the requirement statement does not comply with the R32 universal qualification guideline.
+    - Presuming that the use of "each" is acceptable and aligns with the guideline.
+
+    Note that this function is a straightforward implementation that focuses solely on identifying the specified terms and does not delve into contextual usage or potential synonymous phrases.
+    """
+    
+    # Define terms to check against as indicators of incorrect qualification
+    disallowed_terms = ["all", "any", "both"]
+    
+    # Tokenize the text into individual words
+    words = word_tokenize(text.lower())
+    
+    # Check for presence of any disallowed terms
+    for term in disallowed_terms:
+        if term in words:
+            return False
+    
+    # If none of the terms were found, the requirement is compliant with R32
+    return True
+
+
+
+def eval_has_range_of_values(text: str) -> bool:
+    """
+    R33: Criteria from INCOSE Guide to Writing Requirements:
+        Check if text defines each quantity with an appropriate range of values.
+
+    This function evaluates whether a requirement statement defines quantities with appropriate ranges. It does this by:
+    - Identifying numeric values and their accompanying units.
+    - Checking for expressions of range (e.g., "�", "from", "between", "to").
+    - Ensuring that ranges are presented in a clear and unambiguous way.
+    - Validating the syntax according to common patterns for expressing ranges and tolerances.
+
+    Note that while this provides a heuristic for identifying valid range statements, comprehensive validation of technical requirements may need deeper contextual understanding.
+    """
+    import re
+
+    # Define regex patterns for detecting ranges
+    range_patterns = [
+        r"(\d+(?:\.\d+)?)\s*kg\s*[��]\s*\d+\.?\d*\s*kg",  # e.g., 10 kg � 2 kg
+        r"(\d+(?:\.\d+)?)\s*kg\s*�\s*\d+%",             # e.g., 10 kg � 5%
+        r"from\s*(\d+(?:\.\d+)?)\s*kg\s*to\s*(\d+(?:\.\d+)?)\s*kg",  # e.g., from 10 kg to 12 kg
+        r"between\s*(\d+(?:\.\d+)?)\s*kg\s*and\s*(\d+(?:\.\d+)?)\s*kg",  # e.g., between 10 kg and 12 kg
+    ]
+
+    # Look for range expressions in the text
+    for pattern in range_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+
+    return False
+
+
+
+def eval_has_measurable_performance(text: str) -> bool:
+    """
+    R34: Criteria from INCOSE Guide to Writing Requirements:
+        check if text includes measurable performance targets
+        
+    This function evaluates whether the text includes specific measurable performance targets, 
+    ensuring that terms signifying ambiguous quantification (e.g., "fast", "user-friendly") 
+    are replaced with specific quantities that can be measured. The implementation checks the 
+    presence of ambiguous terms and verifies whether specific quantities are mentioned as performance 
+    indicators.
+
+    Note that natural language analysis is complex, and this function provides a reasonable 
+    heuristic rather than perfect detection. More sophisticated analysis would require deeper 
+    syntactic parsing.
+    """
+    
+    # List of ambiguous terms that indicate unmeasured quantification
+    ambiguous_terms = [
+        "prompt", "fast", "routine", "maximum", "minimum", "optimum", 
+        "nominal", "easy to use", "close quickly", "high speed", 
+        "medium-sized", "best practices", "user-friendly"
+    ]
+    
+    # Check for the presence of ambiguous terms
+    for term in ambiguous_terms:
+        if term in text.lower():
+            return False
+    
+    # Check for specific measurable performance patterns in the text
+    # This can include patterns like "X shall be Y units" or "X shall achieve Y%"
+    measurable_patterns = [
+        r'\b[\w\s]+ shall be \d+[ ]?[units|percent|miles|seconds|kilograms]+\b',
+        r'\b[\w\s]+ shall achieve \d+%'
+    ]
+    
+    import re
+    
+    for pattern in measurable_patterns:
+        if re.search(pattern, text.lower()):
+            return True
+
+    # If there are no measures provided in the text, return False
+    return False
+
+
+
+def eval_has_indefinite_temporal_keywords(text: str) -> bool:
+    """
+    R35: Criteria from INCOSE Guide to Writing Requirements:
+        check if text contains indefinite temporal keywords
+	
+	This function evaluates whether text includes any indefinite temporal keywords that are considered ambiguous and non-verifiable. 
+	The function searches for specific keywords that signal non-specific timing, which could lead to confusion or unintended meaning. 
+	Instead of allowing these vague keywords, requirements should define timing explicitly with measurable criteria.
+
+	Indefinite temporal keywords include: "eventually", "until", "before", "after", "as", "once", "earliest", "latest", 
+	"instantaneous", "simultaneous", and "at last". The function returns False if any such keywords are found in the text, 
+	indicating that the requirement does not meet the defined standards.
+    """
+    
+    # List of indefinite temporal keywords to check against
+    indefinite_temporal_keywords = [
+        "eventually", "until", "before", "after", "as", 
+        "once", "earliest", "latest", "instantaneous", 
+        "simultaneous", "at last"
+    ]
+    
+    # Normalize text to lower case for case-insensitive matching
+    text_lower = text.lower()
+    
+    # Check for the presence of any indefinite temporal keyword
+    for keyword in indefinite_temporal_keywords:
+        if keyword in text_lower:
+            return False  # Found an indefinite temporal keyword
+    
+    # If no indefinite temporal keywords are found, return True
+    return True 
+
+
+
+def eval_consistent_terms_and_units(
+    text: str,
+    glossary_terms: list = [None],
+    glossary_units: list = [None],
+    allow_synonyms: bool = False
+) -> bool:
+    """
+    R36: Criteria from INCOSE Guide to Writing Requirements:
+        Ensure that each term and unit of measure is used consistently throughout the requirement statement
+        and that only defined terms/units (from a glossary/data dictionary) are used. Synonyms are not acceptable.
+
+    Args:
+        text (str): The requirement statement to evaluate.
+        glossary_terms (list, optional): List of accepted terms (as defined in the project glossary/data dictionary). 
+            If None, the function will use an empty list, which disables strict glossary checks. 
+            To maximize consistency, supply the list of accepted terms for your project.
+        glossary_units (list, optional): List of accepted units (as defined in the glossary/data dictionary).
+            If None, basic SI units and standard time/date formats will be used as default.
+        allow_synonyms (bool, default=False): If True, allows synonyms of glossary terms. This is not recommended per R36.
+
+    Returns:
+        bool: True if only consistent terms and units (capitalized, defined, non-synonymous) are used; False otherwise.
+
+    Reasoning for multiple arguments:
+        - glossary_terms: Consistency can only be checked if we know the project's official terms, so we allow users to pass a list of accepted terms.
+        - glossary_units: Likewise, to check consistent units, we accept a list. If none is provided, we check against a basic set and common formats.
+        - allow_synonyms: Allows tuning for edge cases, but is False by default, as synonyms violate R36.
+
+    Heuristics:
+        - Checks capitalization of defined terms.
+        - Checks all units/quantities are either in the glossary or are standard numeric values with accepted units.
+        - Uses regex patterns to find numbers, associated units, and terms.
+        - Checks consistent date/time/format usage.
+        - Does not connect to an ontology; relies on provided/generic lists and patterns.
+
+    """
+    import re
+
+    # Default units and formats if none are supplied
+    SI_UNITS = [
+        "m", "cm", "mm", "km", "g", "kg", "s", "ms", "A", "V", "W", "Hz",
+        "l", "L", "mol", "cd", "", "K", "Pa", "bar", "N", "J", "�C", "�F"
+    ]
+    TIME_FORMATS = [
+        r"\b([01]?\d|2[0-3]):([0-5]\d):([0-5]\d)\b",  # hh:mm:ss
+        r"\b([01]?\d|2[0-3]):([0-5]\d)\b",             # hh:mm
+        r"\b(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/\d{4}\b",   # mm/dd/yyyy
+        r"\b\d{4}/(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])\b",   # yyyy/mm/dd
+        r"\b(0[1-9]|[12]\d|3[01])/(0[1-9]|1[0-2])/\d{4}\b"    # dd/mm/yyyy
+    ]
+    if glossary_terms is None:
+        glossary_terms = []
+    if glossary_units is None:
+        glossary_units = SI_UNITS.copy()
+    else:
+        glossary_units = SI_UNITS + glossary_units
+
+    # 1. Capitalized terms defined in glossary
+    term_pattern = r'\b[A-Z][a-zA-Z0-9_]+\b'
+    found_terms = re.findall(term_pattern, text)
+
+    unglossed_terms = [
+        t for t in found_terms
+        if t not in glossary_terms and t.upper() not in glossary_terms
+    ]
+    # Allow for synonyms if requested (not recommended)
+    if not allow_synonyms and glossary_terms:
+        if unglossed_terms:
+            # At least one capitalized, non-glossary-defined term�violation
+            return False
+
+    # 2. Units for numbers must be consistent and from glossary_units
+    number_unit_pattern = r'(\d+(\.\d+)?)(\s?)([a-zA-Z�/%]+)'
+    matches = re.findall(number_unit_pattern, text)
+    for match in matches:
+        unit = match[3]
+        # Allow compound units (e.g. km/h)
+        subunits = unit.split("/")
+        for su in subunits:
+            if su not in glossary_units and not re.match(r'[%]', su):
+                return False
+
+    # 3. Dates/times consistently formatted
+    found_time_formats = []
+    for fmt in TIME_FORMATS:
+        found_time_formats += re.findall(fmt, text)
+
+    # All occurrences should match a single format if present
+    if len(found_time_formats) > 1:
+        # If matches are of different length, mixed time/date formats�violates consistency
+        formats_found = {len(x) for x in found_time_formats}
+        if len(formats_found) > 1:
+            return False
+
+    # 4. (Bonus) Check for common units used inconsistently (e.g., "liter" vs "L", "kg" vs "kilogram")
+    # This is a fuzzy check, as full synonym detection needs a dedicated units ontology.
+    UNIT_CANONICALS = {
+        "liters": "L", "liter": "L", "kilograms": "kg", "kilogram": "kg",
+        "meters": "m", "meter": "m", "grams": "g", "gram": "g"
+        # Add others as needed
+    }
+    for word in text.split():
+        lw = word.lower().strip(".,;:()")
+        if lw in UNIT_CANONICALS:
+            if UNIT_CANONICALS[lw] not in glossary_units:
+                return False
+
+    # 5. No synonyms for terms allowed
+    if not allow_synonyms and glossary_terms:
+        # Basic check: if term appears in glossary and a different synonym is found (naive check)
+        # For true synonym enforcement, external resources are needed.
+        # Here we check for possible two capitalized terms where only one is in glossary.
+        for term in found_terms:
+            core_term = term.lower()
+            for gloss in glossary_terms:
+                if core_term != gloss.lower() and sorted(core_term) == sorted(gloss.lower()):
+                    # Anagrammatical difference; could be a synonym or misnaming
+                    return False
+
+    return True
+
+
+def eval_acronym_consistency(text: str, acronym_glossary: dict = {}) -> bool:
+    """
+    R37: Criteria from INCOSE Guide to Writing Requirements:
+        Check that acronyms are used consistently in terms of form (capitalization, punctuation) 
+        and, if possible, are defined (in an optional project glossary).
+        
+    Args:
+        text (str): The requirement statement or block of text to analyze.
+        acronym_glossary (dict, optional): A dictionary of acronyms mapped to their full forms 
+            (e.g., {"CMDP": "Configuration Management Data Plan"}). 
+            If provided, the function will also check whether all used acronyms are present in the glossary.
+        
+            Default: None. If unset, the function will only check for consistent use of detected acronyms.
+            
+    Returns:
+        bool: True if acronyms are used consistently (and, if glossary provided, all are defined); False otherwise.
+    
+    Reasoning for default: Most use cases can assess acronym consistency without an explicit glossary; 
+    the glossary check is useful for enforcement but not required for basic detection.
+    
+    Notes:
+        - The function detects sequences of 2+ uppercase letters as potential acronyms.
+        - Consistency checks include form (no periods, consistent capitalization).
+        - Detection is robust for English requirement statements; may miss some edge cases or
+          non-alphabetic acronyms.
+        - For document-wide checks, apply this function across all requirements and compare results.
+    """
+    import re
+    from collections import defaultdict
+
+    # Pattern to detect acronym candidates (2+ uppercase letters, possibly with digits)
+    # Exclude all-caps words less than 2 letters and exclude numbers-only
+    acronym_candidate_pattern = r"\b([A-Z]{2,}[A-Z0-9]*)(?![a-z])\b|\b([A-Z](?:\.|[a-z])){2,}\b"
+
+    # Find all possible acronym forms in the text, including with periods (C.M.D.P)
+    matches = re.findall(r"\b([A-Za-z](?:[A-Za-z]|\.){1,})\b", text)
+    # Filter out words that match acronym pattern or with internal periods
+    acronyms = []
+    for m in matches:
+        # E.g., "CMDP", "C.M.D.P."
+        if re.fullmatch(r"([A-Z]{2,}[A-Z0-9]*)", m):
+            acronyms.append(m)
+        elif re.fullmatch(r"([A-Za-z]\.){2,}", m):
+            acronyms.append(m)
+    
+    # Build a mapping of base "canonical acronym" (stripped of dots, all caps) to all forms found
+    acronym_forms = defaultdict(set)
+    for a in acronyms:
+        # Remove periods, upper-case everything for the canonical form
+        canonical = a.replace(".", "").upper()
+        acronym_forms[canonical].add(a)
+    
+    # Check for inconsistent forms (e.g., both CMDP, CmdP, C.M.D.P.)
+    for forms in acronym_forms.values():
+        # Should be only one style per base acronym (should not have both "CMDP" and "C.M.D.P." or a capitalized variant)
+        normalized = set()
+        for f in forms:
+            normalized.add(f.replace('.', '').upper())
+        if len(forms) > 1 or len(normalized) > 1:
+            # Multiple forms detected (e.g., "CMDP", "C.M.D.P.", or "CmdP")
+            return False
+        # Check for some form of inconsistent capitalization (not all upper)
+        for f in forms:
+            if not f.isupper() and '.' not in f:
+                return False
+
+    # If a glossary is provided, ensure all canonical acronyms are present
+    if acronym_glossary is not None and len(acronym_forms) > 0:
+        glossary_keys = set([k.upper() for k in acronym_glossary.keys()])
+        for canonical in acronym_forms.keys():
+            if canonical not in glossary_keys:
+                return False
+
+    # Passed all checks
+    return True
+
+
+def eval_uses_abbreviations(text: str, glossary: dict = {}) -> bool:
+    """
+    R38: Criteria from INCOSE Guide to Writing Requirements:
+        check if text avoids abbreviations or, if used, ensures they are defined in a provided project glossary.
+
+    Args:
+        text (str): The requirement statement to check.
+        glossary (dict, optional): A dictionary mapping abbreviations (in uppercase) to their full forms.
+                                   Default is None, which means no abbreviations are defined and any detected abbreviation will be considered undefined.
+
+    Returns:
+        bool: True if the text follows the rule (no abbreviations, or all are defined in the glossary), False if any abbreviation is present and undefined.
+
+    Reasoning for default value:
+        By default, glossary is None, which represents the case where no project-defined abbreviations are allowed. This is the strictest application of the rule.
+        In real scenarios, a glossary can be passed in to permit defined abbreviations.
+
+    This function uses a regular expression to detect likely abbreviations�words with two or more uppercase letters that are not at the beginning of the sentence.
+    Detected abbreviations are checked against the glossary (if provided).
+    The function is case-insensitive with respect to abbreviations.
+    The function ignores common pronouns like "I", "A" when capitalized at start of sentence.
+    It is a heuristic�it does not check the semantic context and may sometimes mark technical terms as abbreviations if they follow the detected pattern.
+    """
+    import re
+
+    # If no glossary is provided, no abbreviations are allowed
+    if glossary is None:
+        glossary = {}
+
+    # Find likely abbreviations by regex: 2+ consecutive uppercase letters, possibly with numbers or hyphens.
+    # Skip words at the start of a sentence (which might be capitalized regularly)
+    potential_abbr = set()
+    sentences = re.split(r'(?<=[\.\?!])\s+', text)
+    for sentence in sentences:
+        words = re.findall(r"\b[A-Z][A-Z0-9\-]{1,}\b", sentence)
+        if words:
+            # Remove first word in the sentence if it's capitalized (could be a regular word)
+            first_word = sentence.strip().split()[0] if sentence.strip().split() else ""
+            for w in words:
+                # Exclude first word if that's the only capitalized word in sentence
+                if w == first_word and len(w) > 1 and first_word.isupper():
+                    potential_abbr.add(w)
+                elif w != first_word:
+                    potential_abbr.add(w)
+
+    # Remove any abbreviations that are defined in glossary (case-insensitive match)
+    for abbr in list(potential_abbr):
+        if abbr.upper() in [k.upper() for k in glossary.keys()]:
+            potential_abbr.remove(abbr)
+
+    # If any undefined abbreviations remain, return False
+    return len(potential_abbr) == 0
+
+
+def eval_follows_style_guide(
+    text: str,
+    patterns: list = [None],
+    must_have_attributes: list = [None],
+    glossary_terms: set = set()
+) -> bool:
+    """
+    R39: Criteria from INCOSE Guide to Writing Requirements:
+        Check if the requirement statement follows a project-wide style guide.
+
+    This function analyzes a requirement or need statement to determine whether it follows
+    a specified style guide, which may include accepted patterns/templates, required attributes,
+    and adherence to a project glossary for consistent terminology.
+    
+    Args:
+        text (str): The requirement or need statement to evaluate.
+        patterns (list, optional): List of regex patterns or string templates representing
+            approved sentence structures from the organizational or international style guide.
+            Default is a simple generic requirement template if not supplied.
+        must_have_attributes (list, optional): List of attribute keywords or phrases that
+            should appear in the text (e.g., 'Rationale:', 'Performance:'). If supplied,
+            text must mention all provided attributes. Default is empty.
+        glossary_terms (set, optional): Set of allowed domain/project-specific terms that
+            should appear in the statement (if required). Default is None, meaning glossary
+            is not checked.
+
+    Returns:
+        bool: True if the statement matches a provided or default pattern/template,
+              contains all specified required attributes, and (if glossary_terms is supplied)
+              only uses terms in the glossary.
+
+    Default values:
+        - patterns: Defaults to ["The system shall (.+)", "The <object> shall (.+)"].
+            Because patterns or templates are project-specific, the function provides basic
+            requirement patterns if a list is not supplied. For most organizations, it is
+            expected that this argument would be set.
+        - must_have_attributes: Defaults to []. Many organizations require fields like rationale
+            or performance, but this can be omitted if not relevant.
+        - glossary_terms: Optional. If provided, the text must use at least one glossary term,
+            and not include out-of-glossary technical terms.
+
+    Note:
+        This function provides a reasonable heuristic, not a substitute for formal compliance checking.
+        True compliance requires reviewing actual organizational patterns and schema.
+
+    Example usage:
+        eval_follows_style_guide(
+            "The system shall initialize within 10 seconds.",
+            patterns=["The system shall (.+)"],
+            must_have_attributes=["Performance"],
+            glossary_terms={"initialize", "system", "seconds"}
+        )
+
+    """
+    import re
+
+    # Default: allow a very generic "The <actor> shall <action>" type pattern
+    if patterns is None:
+        patterns = [
+            r"\bThe [a-zA-Z0-9_ ]+ shall [^\.]+",   # e.g. The system shall <do something>
+            r"\bThe system must [^\.]+",
+            r"\bThe [a-zA-Z0-9_ ]+ shall be capable of [^\.]+",  # Passive capability
+        ]
+
+    # Check for matching patterns/templates
+    matched = False
+    for pattern in patterns:
+        if re.search(pattern, text):
+            matched = True
+            break
+    if not matched:
+        return False
+
+    # Check for required attributes if specified
+    if must_have_attributes:
+        for attr in must_have_attributes:
+            if attr.lower() not in text.lower():
+                return False
+
+    # Glossary check: if supplied, ensure all "technical" terms are present in glossary
+    if glossary_terms is not None:
+        # Extract potential terms (nouns, technical words)
+        import nltk
+        try:
+            nltk.data.find("tokenizers/punkt")
+            nltk.data.find("taggers/averaged_perceptron_tagger")
+        except LookupError:
+            nltk.download("punkt")
+            nltk.download("averaged_perceptron_tagger")
+
+        tokens = nltk.word_tokenize(text)
+        tagged = nltk.pos_tag(tokens)
+        # Only check nouns and proper nouns
+        terms = set(
+            w.lower() for w, pos in tagged if pos in ("NN", "NNS", "NNP", "NNPS")
+        )
+        # If glossary_terms is not empty, at least one term must be in both sets
+        if terms and glossary_terms:
+            if not any(term in glossary_terms for term in terms):
+                return False
+            # (Optionally: could fail if any tech term is NOT in glossary...
+            # if any(term not in glossary_terms for term in terms):
+            #     return False
+            # But for now, pass if at least one term matches glossary)
+
+    return True
+
+
+
+def eval_decimal_format(text: str) -> bool:
+    """
+    R40: Criteria for consistent decimal format in requirement statements:
+        check if the numbers in the text follow specified decimal format rules
+		
+    This function evaluates whether the numeric values in a text adhere to the criteria set for decimal formats,
+    significant digits, and the use of decimal and thousands separators. The checks include:
+    
+    1. Consistency of decimal format (e.g., space, comma, period)
+    2. Proper use of decimal separators for various conventions
+    3. Enforcement of significant digits across the stated requirements
+    
+    The implementation employs regular expressions to identify numerical patterns
+    and verify their compliance with the outlined formatting rules.
+    """
+    import re
+
+    # Regular expression patterns for numeric formats
+    decimal_point_pattern = r'(?<!\d)(\d{1,3}(?:,\d{3})*?\.\d+)(?!\d)'  # Format with period as decimal
+    decimal_comma_pattern = r'(?<!\d)(\d{1,3}(?:\.\d{3})*?,\d+)(?!\d)'  # Format with comma as decimal
+    space_decimal_pattern = r'(?<!\d)(\d{1,3}(?: \d{3})*?[.,]\d+)(?!\d)'  # Format with space as thousands separator
+    significant_digits_pattern = r'\d+\.\d+|\d+,\d+|\d+'
+    
+    # Find all numeric patterns in the text
+    decimal_points = re.findall(decimal_point_pattern, text)
+    decimal_commas = re.findall(decimal_comma_pattern, text)
+    space_decimals = re.findall(space_decimal_pattern, text)
+    
+    # Combine the results from the different patterns found
+    found_numbers = decimal_points + decimal_commas + space_decimals
+    
+    if not found_numbers:
+        # No numbers found to validate
+        return True
+
+    # Check the number of significant digits
+    def check_significant_digits(number: str) -> bool:
+        # Split by the decimal point or comma
+        if '.' in number:
+            whole, decimal = number.split('.', 1)
+        elif ',' in number:
+            whole, decimal = number.split(',', 1)
+        else:
+            return True  # No decimals, valid as is
+        
+        # Ensure the decimal part has a consistent number of digits
+        if len(decimal) not in (1, 2):  # Assuming requirements for 1 or 2 decimal points
+            return False
+        
+        return True
+    
+    # Validate all found numbers
+    for number in found_numbers:
+        if not check_significant_digits(number):
+            return False
+    
+    # Check for consistency among thousand and decimal separators
+    if len(decimal_points) > 0 and (len(decimal_commas) + len(space_decimals)) > 0:
+        return False  # Mixed formats are not allowed
+    
+    if len(decimal_commas) > 0 and len(space_decimals) > 0:
+        return False  # Mixed formats are not allowed
+    
+    # If all tests pass, return True
+    return True
+
+
+
+def eval_group_related_needs_requirements(text: str) -> bool:
+    """
+    R41: Criteria from INCOSE Guide to Writing Requirements:
+        check if related needs and requirements are grouped together
+        
+    This function evaluates whether the text groups related needs and requirements by checking for the presence
+    of keywords or patterns that suggest categorization or grouping of requirements. It aims to:
+    
+    - Identify keywords or phrases that indicate groupings, such as "form," "fit," "function," "quality,"
+      or "compliance."
+    - Analyze the structure of the requirement statements to see if they fall into distinct categories.
+    - Ensure that requirements that should be grouped together are indeed found in proximity or contextually linked
+      within the provided text.
+      
+    Note that natural language analysis can be complex; this function provides a heuristic approach for identifying
+    potential groupings. A perfect grouping verification would require deeper semantic analysis.
+    """
+    
+    # Define common grouping keywords/phrases associated with needs and requirements
+    grouping_keywords = ["form", "fit", "function", "quality", "compliance", "type", "category", "related", 
+                         "group", "associated", "collectively", "together", "similarly"]
+    
+    # Normalize the text
+    normalized_text = text.lower()
+    
+    # Check for presence of grouping keywords
+    keyword_present = any(keyword in normalized_text for keyword in grouping_keywords)
+    
+    if not keyword_present:
+        return False  # No clear grouping indicators found
+    
+    # Check if requirements and needs are presented in a structured way that suggests grouping
+    # This could include patterns such as lists, bullets, or consistent categorization formats
+    sentences = normalized_text.split('. ')
+    
+    # Analyze structure for grouping cues
+    for sentence in sentences:
+        # Simple check for bullet points or lists (indicating groupings)
+        if (sentence.startswith('-') or sentence.startswith('*') or 
+            'list of' in sentence or 'group of' in sentence):
+            return True
+    
+    # Return true if we found evidence of structured grouping
+    return False
+
+
+def eval_is_structured_set(text: str, template_sections: list = [None]) -> bool:
+    """
+    R42: Criteria from INCOSE Guide to Writing Requirements:
+        check if the requirement statement follows a defined structure or template for organizing sets of needs and requirements
+
+    Parameters:
+        text (str): The input text representing the set of requirements or needs to be analyzed.
+        template_sections (list, optional): A list of section or header keywords that define the expected structure/template. 
+            For example: ["Need Statement", "Requirement Statement", "Rationale", "Verification", "Traceability"].
+            DEFAULT: None, which will use a generic set of anticipated sections for requirements organization.
+
+    Returns:
+        bool: True if text appears to be structured according to the template; False otherwise.
+
+    Reason for Parameter Default:
+        - template_sections may differ based on organization or requirement management tool (RMT) conventions. If not provided,
+          the function defaults to a set of commonly found section headers in typical requirement documentation.
+        - The function will operate best if the organization�s expected template is provided.
+
+    This function uses a heuristic approach:
+        1. It looks for explicit section headers or bullet-like key phrases (indicating structure, e.g., "Requirement", "Rationale", etc.)
+        2. If a sufficient number or fraction of the expected sections are present, it considers the document structured.
+        3. Otherwise, it returns False, flagging a possible lack of organizational structure.
+    """
+    import re
+
+    # Fallback: Most common section headers
+    if template_sections is [None]:
+        template_sections = [
+            "Need Statement", "Requirement Statement", "Rationale", "Verification", "Validation",
+            "Traceability", "Assumptions", "Constraints", "Acceptance Criteria"
+        ]
+
+    # Normalize text for easier searching (collapse spacing, ignore case)
+    normalized_text = re.sub(r"\s+", " ", text).lower()
+
+    # Collect found sections
+    found_sections = 0
+    # Accept variations on header format (colon or not) and ignore case
+    for section in template_sections:
+        section_pattern = r"\b" + re.escape(section.lower()) + r"\b\s*:?"
+        if re.search(section_pattern, normalized_text):
+            found_sections += 1
+
+    # Heuristic: If at least half of the expected sections are present, consider it structured
+    # Also, require at least 2 sections to account for very simple stubs
+    required_sections = max(2, round(len(template_sections) * 0.5))
+    if found_sections >= required_sections:
+        return True
     else:
         return False
