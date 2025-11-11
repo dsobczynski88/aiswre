@@ -91,12 +91,12 @@ class RequirementsProcessor:
         return await self.process_json_responses(responses, ids, prompt_name, json_key)
 
     async def process_requirements(self):
-        try:
+        try: 
             print(f"Loading Excel file: {self.excel_file}")
             # Load Excel file
             df = pd.read_excel(self.excel_file)
             
-            print(f"Found {len(df)} requirements to process")
+            print(f"Found {len(df)} requirements to process") 
             # Extract requirements and IDs
             requirements = df['requirement_text'].tolist()
             ids = df['requirement_id'].tolist() if 'requirement_id' in df.columns else None
