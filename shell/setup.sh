@@ -16,9 +16,9 @@
 # Default values
 VENV_DIR="venv"
 MAKE_DATASET=false
-RUN_REQUIREMENTS=true
-REQ_INPUT_FILE="sample_requirements.xlsx"
-REQ_OUTPUT_DIR="output"
+RUN_REQUIREMENTS=false
+REQ_INPUT_FILE="output/sample_requirements.xlsx"
+REQ_OUTPUT_DIR="output/"
 
 # Function to display usage information
 usage() {
@@ -69,7 +69,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Change to parent directory
-cd ..
+
+echo "Current directory: $(pwd)"
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
@@ -90,7 +91,7 @@ python -m pip install pandas openpyxl flatdict ollama
 python -m pip install -e .
 
 # Create output directory if it doesn't exist
-mkdir -p scripts/output
+mkdir -p $REQ_OUTPUT_DIR
 
 # Run make_dataset script if requested
 if [ "$MAKE_DATASET" = true ]; then
@@ -103,7 +104,7 @@ if [ "$RUN_REQUIREMENTS" = true ]; then
     echo "Running requirements processor..."
     echo "Input file: $REQ_INPUT_FILE"
     echo "Output directory: $REQ_OUTPUT_DIR"
-    python -m scripts.requirements_processor "$REQ_INPUT_FILE" "../$REQ_OUTPUT_DIR"
+    python -m scripts.requirements_processor -i "$REQ_INPUT_FILE" -o "$REQ_OUTPUT_DIR"
 fi
 
 echo "Script completed successfully."

@@ -12,5 +12,5 @@ data = {
 
 # Create DataFrame and save to Excel
 df = pd.DataFrame(data)
-df.to_excel('sample_requirements.xlsx', index=False)
+df.to_excel('./output/sample_requirements.xlsx', index=False)
 print("Sample requirements file created: sample_requirements.xlsx")
