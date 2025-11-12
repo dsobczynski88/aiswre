@@ -4,6 +4,7 @@ aiswre.egg-info/
 __pycache__/
 venv/
 src/data/*
+output/
 !src/data/incose_gtwr.pdf
 !src/data/demo_dataset.xlsx
 !src/data/software_requirements.xlsx
