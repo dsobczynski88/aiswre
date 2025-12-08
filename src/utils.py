@@ -29,6 +29,7 @@ def concat_matching_dataframes(
     file_readers: Optional[Mapping[str, Callable[..., pd.DataFrame]]] = None,
     read_kwargs: Optional[Mapping[str, dict]] = None,
     check_list_like_columns: bool = False,
+    axis: int = 0
     ) -> pd.DataFrame:
     """
     Scan a directory for files whose names match a regex, read them into DataFrames,
@@ -50,6 +51,7 @@ def concat_matching_dataframes(
                                 that parse via ast.literal_eval into Python lists. Only columns
                                 that plausibly contain list-like strings (e.g., "[1, 2]") are
                                 attempted.
+        axis: The way the concatenation should take place (0 for row-wise, 1 for column-wise)
 
     Returns:
         Concatenated DataFrame containing all rows from the matched files.
@@ -136,10 +138,10 @@ def concat_matching_dataframes(
             yield reader(fp, **kwargs)
 
     try:
-        result = pd.concat(_dfs(), ignore_index=ignore_index, sort=sort, copy=False)
+        result = pd.concat(_dfs(), ignore_index=ignore_index, sort=sort, axis=axis, copy=False)
     except TypeError:
         # Older pandas may not support copy=...
-        result = pd.concat(_dfs(), ignore_index=ignore_index, sort=sort)
+        result = pd.concat(_dfs(), ignore_index=ignore_index, sort=sort, axis=axis)
 
     if check_list_like_columns and not result.empty:
         def _looks_like_list_str(x) -> bool:
