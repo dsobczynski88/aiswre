@@ -405,8 +405,10 @@ class RateLimitOpenAIClient:
                 pass
 
         return completion
+    
+
 class ResponseClient:
-    def init(self, client: OpenAI, model: str):
+    def __init__(self, client: OpenAI, model: str):
         self.client = client
         self.model = model
         self.previous_response_ids: List[str] = []
