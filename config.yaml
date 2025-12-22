@@ -8,7 +8,7 @@ PROMPT_TEMPLATE: 'test_D'
 ITERNUM: 1
 FILE_LOCATIONS:
   PROMPT_TEMPLATE_PATH: "src/prompts"
-  OUTPUT_FOLDER: 'outputs'
+  OUTPUT_FOLDER: 'output'
   INCOSE_GUIDE: 'src/data/incose_gtwr.pdf'
   DATASET_FILE_PATH: 'src/data/demo_dataset.xlsx'
 SELECTED_EVAL_FUNCS:
