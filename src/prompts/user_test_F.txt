@@ -1,0 +1,50 @@
+Task: Review and improve the following requirement statements using the provided variables.
+
+Variables:
+- Requirements (list or newline-separated; may include IDs):
+  {requirements}
+- Enable split recommendations (true|false; default true): {enable_split}
+
+Produce output strictly in the Response Format JSON. Do not use Markdown.
+
+Examples
+
+Example — Aerospace domain with passive voice and units
+Input variables:
+
+Requirements:
+While in the Cruise_Mode, the Fuel_Flow shall be recorded by the <SOI>.
+Enable split recommendations: true
+Expected output (abbreviated):
+{
+"review_metadata": {
+"rules_applied": ["R2","R3","R5","R6","R7","R8","R9"],
+"assumptions": ["Assume measurement_system = SI; placeholders used where exact values are unknown.", "Glossary defines <SOI>, Cruise_Mode, Fuel_Flow, Navigation_Display, Operator, Control_Interface, Basic_Configuration."]
+},
+"compliance_summary": {
+"total_requirements": 1,
+"pass_count": 0,
+"fail_count": 3,
+"issues_by_rule": {"R2": 1, "R3": 3, "R5": 0, "R6": 3, "R7": 1, "R8": 1, "R9": 0}
+},
+"requirements_review": [
+{
+"requirement_id": "REQ-001",
+"original": "While in the Cruise_Mode, the Fuel_Flow shall be recorded by the <SOI>.",
+"checks": {
+"R2": {"status":"fail","passive_voice_detected":true,"explanation":"Use active voice with the responsible entity as subject."},
+"R3": {"status":"fail","explanation":"Subject is not the declared entity; make <SOI> the subject."},
+"R5": {"status":"pass","explanation":"Defined entities use the definite article."},
+"R6": {"status":"fail","explanation":"Fuel_Flow units and sampling frequency are not stated."},
+"R7": {"status":"pass","explanation":""},
+"R8": {"status":"pass","explanation":""},
+"R9": {"status":"pass","explanation":""}
+},
+"proposed_rewrite": "The <SOI> shall record the Fuel_Flow in kg/s at a Sampling_Frequency of <sampling_rate> Hz while in the Cruise_Mode.",
+"split_recommendation": {"needed": false, "because": "Single action.", "split_into": []},
+"clarifying_questions": ["Specify the sampling_rate (Hz).", "Confirm the Fuel_Flow unit (e.g., kg/s).", "Define the storage location and retention period for recorded data."]
+}
+]
+}
+
+Now perform the review on the provided inputs and return only the Response Format JSON.
