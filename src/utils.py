@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import re
 import math
 import matplotlib.pyplot as plt
@@ -16,6 +17,26 @@ from src.prj_logger import get_logs
 
 import pandas as pd
 
+
+def load_prompt(prompt_base_bath: str, prompt_name: str, prompt_type: str = "system") -> str:
+    """
+    Load a prompt text file from ../src/prompts directory.
+
+    Args:
+        prompt_name: logical name of the prompt (e.g., 'test_A', 'test_prewarm')
+        prompt_type: 'system' or 'user'
+
+    Returns:
+        The text content of the prompt file.
+    """
+    filename = f"{prompt_type}_{prompt_name}.txt"
+    filepath = os.path.join(prompt_base_bath, filename)
+
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Prompt file not found: {filepath}")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        return f.read()
 
 def concat_matching_dataframes(
     _path: Union[str, Path],

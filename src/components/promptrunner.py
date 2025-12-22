@@ -301,8 +301,10 @@ class RateLimitOpenAIClient:
         max_requests_per_minute: int = 490,
         max_tokens_per_minute: Optional[int] = 200000,
         token_estimator: Optional[Callable[[List[Dict[str, Any]], str], int]] = None,
-    ):
+        ):
         self.client = AsyncOpenAI(api_key=api_key)
+        self.max_rpm = max_requests_per_minute
+        self.max_tpm = max_tokens_per_minute
         self.rate_limiter = OpenAIRateLimiter(max_requests_per_minute)
         self.token_limiter = OpenAITokenLimiter(max_tokens_per_minute) if max_tokens_per_minute else None
         self._token_estimator_fn = token_estimator or (lambda messages, model: _estimate_tokens_from_messages(messages, model))
