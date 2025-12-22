@@ -1,12 +1,35 @@
 MODEL: 'gpt-4o-mini'
-SELECTED_BASE_TEMPLATE: 'req-reviewer-instruct-2'
+MODEL_KWARGS:
+    response_format:
+        type: "json_object"
+MAX_REQUEST_PER_MIN: 490
+MAX_TOKENS_PER_MIN: 200000
+PROMPT_TEMPLATE: 'test_D'
 ITERNUM: 1
 FILE_LOCATIONS:
-  MAIN_DATA_FOLDER: '../src/data'
-  INCOSE_GUIDE: '../src/data/incose_gtwr.pdf'
-  DATASET_FILE_PATH: '../src/data/demo_dataset_2.xlsx'
+  PROMPT_TEMPLATE_PATH: "src/prompts"
+  OUTPUT_FOLDER: 'output'
+  INCOSE_GUIDE: 'src/data/incose_gtwr.pdf'
+  DATASET_FILE_PATH: 'src/data/demo_dataset.xlsx'
+SELECTED_EVAL_FUNCS:
+   - "eval_avoids_vague_terms"
+   - "eval_definite_articles_usage"
+   - "eval_has_appropriate_subject_verb"
+   - "eval_has_common_units_of_measure"
+   - "eval_has_escape_clauses"
+   - "eval_has_no_open_ended_clauses"
+   - "eval_is_active_voice"
+SELECTED_EVAL_WEIGHTS:
+   - 0.35
+   - 0.05
+   - 0.15
+   - 0.05
+   - 0.10
+   - 0.10
+   - 0.20
 REQUIREMENTS_DATASET_SETTINGS:
-  REQ_COLNAME: 'Requirement'
+  REQ_COLNAME: 'requirements'
+  REQ_ID_COLNAME: 'requirement_id'
   FAILED_EVAL_COL: 'failed_evals'
 INCOSE_GUIDE_SETTINGS:
   SECTIONS_REGEX_PAT: '([1-9]\.([0-9]+\.)?[0-9]?)[\s]+R\d'
@@ -17,47 +40,7 @@ INCOSE_GUIDE_SETTINGS:
   REPLACE_WITH: ' '
   SUBPATTERNS: 
     - 'Guide to Writing Requirements[\s\d]+'
-GENERAL_REVIEWER_TEMPLATE:
-  req-reviewer-gen-1:
-    name:
-    description:
-    system:
-    user:
-BASE_PROMPT_TEMPLATES:
-  req-reviewer-instruct-1:
-    name: 'req-reviewer-instruct-1'
-    description: 'This template applies the standard text model practice of writing clear instructions by specifying steps. In this case, the prompt seeks to use OpenAI gpt models to perform a robust revision of software requirements based on INCOSE best practices.'
-    system: 'Step 1 - The user will hand over a Requirement, Criteria, and Examples. Your task is to revise the Requirement as per the provided Criteria and Examples, starting with the phrase "Initial Revision:".\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Lets think step-by-step.\nStep 3 - Return the final requirement revision based on Steps 1 and 2, starting with the phrase \"Final Revision:\".'
-    user: 'Requirement: {req}\nCriteria:\n{definition}\nExamples:\n{examples}'
-    func: 
-  req-reviewer-instruct-2:
-    name: 'req-reviewer-instruct-2'
-    description: 'Similar to req-reviewer-instruct-1; however, additional specification is provided to ensure the requirement does not become exceedingly lengthy.'
-    system: 'Step 1 - The user will hand over an evaluation Criteria, Examples of revised requirements, and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Lets think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.'
-    user: 'Criteria:\n{definition}\nExamples:\n{examples}\nRequirement:\n{req}'
-    func: 
-  req-reviewer-instruct-3:
-    name: 'req-reviewer-instruct-3'
-    description: 'Similar to req-reviewer-instruct-2; however, only the definition is provided in the prompt (no examples)'
-    system: 'Step 1 - The user will hand over an evaluation Criteria and a Requirement. Your task is to revise the Requirement as per the provided Criteria and Examples.\nStep 2 - Compare the initial revision performed in Step 1 against the criteria to determine if any additional revisions are necessary. Lets think step-by-step.\nStep 3 - Return ONLY the final requirement revision based on Steps 1 and 2.\nRules\n---\nThe revised requirement must consist of a single sentence. Additional sentences must be prefixed with Context:.'
-    user: 'Criteria:\n{definition}\nRequirement:\n{req}'
-    func:
-  req-evaluator-gen-1:
-    name: 'req-evaluator-gen-1'
-    description: 'This template is designed to assess an input requirement holistically on Section 4 of the Guide. Specifically, the intent is to provide the definition and elaboration for various stated rules and have the prompt respond which rules the given requirement violates'
-    system:
-    user:
-    func:
-PROMPT_EVALUTION_CONFIG:
-  R2: 'eval_is_in_passive_voice'
-  R3: 'eval_if_vague_verb'
-  R7: 'eval_has_vague_terms'
-  R8: 'eval_has_escape_clause'
-  R9: 'eval_has_open_end_clause'
-  R10: 'eval_has_superfl_inf'
-  R19: 'eval_has_combinators' 
-EVALUATION_FUNCTION_MAP: none
-SECTION_4_RULE_GROUPS:
+INCOSE_RULE_GROUPS:
   eval_acronym_consistency: Uniformity_Of_Language
   eval_avoid_pronouns: Completeness
   eval_avoids_absolutes: Realism
