@@ -493,9 +493,9 @@ def get_current_date_time():
     formatted_time = now.strftime("%Y-%m-%d-%H-%M-%S")
     return formatted_time  
 
-def make_output_directory(file_locations):
+def make_output_directory(file_locations, output_folder_name):
     run_name = f"run-{get_current_date_time()}"
-    output_directory = f"{file_locations['MAIN_DATA_FOLDER']}/{run_name}"
+    output_directory = f"{file_locations[output_folder_name]}/{run_name}"
     Path(output_directory).mkdir(parents=True, exist_ok=True)
     return output_directory
 

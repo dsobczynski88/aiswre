@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import asyncio
 import time
@@ -8,6 +9,63 @@ from typing import Any, Dict, List, Optional, Sequence
 from openai.types.chat import ChatCompletion
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
 from src.components.promptrunner import RateLimitOpenAIClient
+
+def parse_llm_json_like(raw: str) -> Dict[str, Any]:
+    """
+    Robustly parses JSON-like strings produced by LLMs.
+    Handles:
+      - Escaped quotes
+      - Python dict literals
+      - Mixed quoting
+    """
+
+    if not raw or not isinstance(raw, str):
+        raise ValueError("Input must be a non-empty string")
+
+    text = raw.strip()
+
+    # ----------------------------------------------------
+    # Step 1: Unwrap if the entire payload is quoted
+    # ----------------------------------------------------
+    if (text.startswith("'") and text.endswith("'")) or \
+       (text.startswith('"') and text.endswith('"')):
+        text = text[1:-1]
+
+    # Unescape common LLM escape patterns
+    text = text.replace("\\'", "'").replace('\\"', '"')
+
+    # ----------------------------------------------------
+    # Step 2: Attempt strict JSON
+    # ----------------------------------------------------
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # ----------------------------------------------------
+    # Step 3: Attempt Python literal parsing (SAFE)
+    # ----------------------------------------------------
+    try:
+        result = ast.literal_eval(text)
+        if isinstance(result, dict):
+            return result
+        raise ValueError("Parsed value is not a dictionary")
+    except Exception:
+        pass
+
+    # ----------------------------------------------------
+    # Step 4: Last-resort fixups → then JSON
+    # ----------------------------------------------------
+    repaired = text
+
+    # Python → JSON boolean
+    repaired = re.sub(r"\bTrue\b", "true", repaired)
+    repaired = re.sub(r"\bFalse\b", "false", repaired)
+
+    # Convert single quotes to double quotes conservatively
+    repaired = re.sub(r"(?<!\\)'", '"', repaired)
+
+    return json.loads(repaired)
 
 
 class PromptProcessor:
@@ -111,126 +169,134 @@ class PromptProcessor:
         responses: Sequence[Any],
         ids: Sequence[Any],
         prompt_type: str,
-        json_key: Optional[str] = None,
         ) -> List[Dict[str, Any]]:
-        """
-        Flatten and normalize model JSON responses with token metadata and clean column names.
-        Always includes the raw model response text as `raw_response`.
 
-        Args:
-            responses: Full model response objects (not just JSON text).
-            ids: Identifiers for each response (e.g., row/item IDs).
-            prompt_type: Name/type of prompt associated with this batch.
-            json_key: Optional top-level key to extract structured outputs (e.g., 'requirements_review').
-
-        Returns:
-            List of flattened dictionaries, one per response, with standardized key names.
-        """
         processed: List[Dict[str, Any]] = []
 
         for i, response in enumerate(responses):
 
-            # ---------------------------------------------------------------------
-            # Base record
-            # ---------------------------------------------------------------------
-            output: Dict[str, Any] = {"item_id": ids[i], "prompt_type": prompt_type}
+            base_output: Dict[str, Any] = {
+                "item_id": ids[i],
+                "prompt_type": prompt_type,
+            }
 
-            # Handle None responses (failed prompts)
+            # -------------------------------------------------
+            # Handle None response
+            # -------------------------------------------------
             if response is None:
-                output = {
-                    "item_id": ids[i],
-                    "prompt_type": prompt_type,
-                    "error": "Prompt failed after retry"
-                }
-                processed.append(output)
+                processed.append({
+                    **base_output,
+                    "error": "Prompt failed after retry",
+                })
                 continue
-            else:
-                # ---------------------------------------------------------------------
-                # STEP 1 — Extract message content and always save as raw_response
-                # ---------------------------------------------------------------------
-                #print(type(response))
-                try:
-                    if isinstance(response, ParsedChatCompletion):
-                        content = response.choices[0].message.content
-                    elif isinstance(response, dict) and "response" in response:
-                        content = response["response"].content
-                    elif isinstance(response, str):
-                        content = response
-                    else:
-                        content = str(response)
-                    
-                    try:
-                        response_json = json.loads(content)
-                        if json_key and json_key in response_json:
-                            nested_dicts = response_json[json_key]
-                            if isinstance(nested_dicts, list):
-                                flat_dicts = [flatdict.FlatDict(d, delimiter=".") for d in nested_dicts]
-                                for d in flat_dicts:
-                                    output.update(d)
-                            elif isinstance(nested_dicts, dict):
-                                flat_dict = flatdict.FlatDict(nested_dicts, delimiter=".")
-                                output.update(flat_dict)
-                        else:
-                            # If no json_key specified or not found, use the whole response
-                            flat_dict = flatdict.FlatDict(response_json, delimiter=".")
-                            output.update(flat_dict)
-                    except (json.JSONDecodeError, TypeError):
-                        output["json_parse_error"] = content
-                
-                except Exception as e:
-                    output["processing_error"] = str(e)
-                
-                output.update({"raw_response": str(response)})
-                
-                # ---------------------------------------------------------------------
-                # STEP 2 — Parse JSON and flatten keys (no numeric prefixes)
-                # ---------------------------------------------------------------------
-                #try:
-                #    parsed = json.loads(content)
-                #
-                #    # Handle top-level key when present
-                #    if json_key and json_key in parsed:
-                #        extracted = parsed[json_key]
-                #        if isinstance(extracted, list):
-                #            # Merge flattened items directly (assuming one response item per prompt)
-                #            for item in extracted:
-                #                output.update(flatdict.FlatDict(item, delimiter="."))
-                #        elif isinstance(extracted, dict):
-                #            output.update(flatdict.FlatDict(extracted, delimiter="."))
-                #    else:
-                #        # Fallback: flatten the full JSON
-                #        output.update(flatdict.FlatDict(parsed, delimiter="."))
-                #
-                #except (json.JSONDecodeError, TypeError):
-                #    # If parsing fails, keep raw text already stored
-                #    output["json_error"] = "JSON parsing failed"
 
-                # ---------------------------------------------------------------------
-                # STEP 3 — Include usage metadata (if available)
-                # ---------------------------------------------------------------------
-                usage = getattr(response, "usage", None)
-                if usage:
+            # -------------------------------------------------
+            # Extract content
+            # -------------------------------------------------
+            try:
+                if isinstance(response, ParsedChatCompletion):
+                    content = response.choices[0].message.content
+                elif isinstance(response, dict) and "response" in response:
+                    content = response["response"].content
+                else:
+                    content = str(response)
+            except Exception as e:
+                processed.append({
+                    **base_output,
+                    "processing_error": str(e),
+                    "raw_response": str(response),
+                })
+                continue
+
+            # -------------------------------------------------
+            # Parse JSON (robust)
+            # -------------------------------------------------
+            try:
+                response_json = parse_llm_json_like(content)
+            except Exception as e:
+                processed.append({
+                    **base_output,
+                    "json_parse_error": str(e),
+                    "raw_response": content,
+                })
+                continue
+
+            # -------------------------------------------------
+            # Collect shared + row-level structures
+            # -------------------------------------------------
+            shared_flat: Dict[str, Any] = {}
+            row_expanders: List[List[Dict[str, Any]]] = []
+
+            for key, value in response_json.items():
+
+                # ------------------------------
+                # Case 1: dict → shared columns
+                # ------------------------------
+                if isinstance(value, dict):
+                    flat = flatdict.FlatDict(value, delimiter=".")
+                    shared_flat.update({f"{key}.{k}": v for k, v in flat.items()})
+
+                # -------------------------------------------------------
+                # Case 2: list of dicts → row-expanding structure
+                # -------------------------------------------------------
+                elif (
+                    isinstance(value, list)
+                    and value
+                    and all(isinstance(v, dict) for v in value)
+                ):
+                    expanded_rows: List[Dict[str, Any]] = []
+                    for idx, item in enumerate(value):
+                        flat = flatdict.FlatDict(item, delimiter=".")
+                        expanded_rows.append(
+                            {
+                                f"{key}.{k}": v
+                                for k, v in flat.items()
+                            }
+                        )
+                    row_expanders.append(expanded_rows)
+
+                # ------------------------------
+                # Case 3: scalar
+                # ------------------------------
+                else:
+                    shared_flat[key] = value
+
+            # -------------------------------------------------
+            # Combine shared + expanded rows
+            # -------------------------------------------------
+
+            if row_expanders:
+                # Currently supports 1 expanding list cleanly
+                for idx, row_payload in enumerate(row_expanders[0]):
+                    final_row = {
+                        **base_output,
+                        **shared_flat,
+                        **row_payload,
+                        "raw_response": content,
+                    }
+                    processed.append(final_row)
+            else:
+                processed.append({
+                    **base_output,
+                    **shared_flat,
+                    "raw_response": content,
+                })
+
+            # -------------------------------------------------
+            # Token usage (if available)
+            # -------------------------------------------------
+            usage = getattr(response, "usage", None)
+            if usage:
+                last_rows = processed[-len(row_expanders[0]):] if row_expanders else [processed[-1]]
+                for row in last_rows:
                     try:
-                        output.update(dict(usage))
-                        for sub_key in ["completion_tokens_details", "prompt_tokens_details"]:
+                        row.update(dict(usage))
+                        for sub_key in ("prompt_tokens_details", "completion_tokens_details"):
                             sub = getattr(usage, sub_key, None)
                             if sub:
-                                output.update(dict(sub))
+                                row.update(dict(sub))
                     except Exception:
-                        pass  # Defensive catch for malformed usage info
-
-                # ---------------------------------------------------------------------
-                # STEP 4 — Include any parsed attributes from the message if present
-                # ---------------------------------------------------------------------
-                #if message:
-                #    parsed_msg = getattr(message, "parsed", None)
-                #if parsed_msg:
-                #    output.update(dict(parsed_msg))
-
-                # ---------------------------------------------------------------------
-                # STEP 5 — Append processed record
-                # ---------------------------------------------------------------------
-                processed.append(output)
+                        pass
 
         return processed
 
@@ -259,7 +325,7 @@ class PromptProcessor:
         # Execute async API calls concurrently
         tasks = [self._call_openai(system_message, user_msg) for user_msg in formatted_prompts]
         responses = await asyncio.gather(*tasks)
-        return await self.process_json_responses(responses, ids, prompt_name, json_key)
+        return await self.process_json_responses(responses, ids, prompt_name)
 
 
 # -----------------------------------------------------------------------------
