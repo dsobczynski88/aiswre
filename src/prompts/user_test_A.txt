@@ -1,0 +1,10 @@
+Task: Review and improve the following requirement statements using the provided variables.
+
+Variables:
+- Requirements (list or newline-separated; may include IDs):
+  {requirements}
+- Enable split recommendations (true|false; default true): {enable_split}
+
+Produce output strictly in the Response Format JSON. Do not use Markdown.
+
+Now perform the review on the provided inputs and return only the Response Format JSON.

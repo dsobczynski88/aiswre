@@ -1,0 +1,84 @@
+Task: Review and improve the following requirement statements using the provided variables.
+
+Variables:
+- Requirements (list or newline-separated; may include IDs):
+  {requirements}
+- Enable split recommendations (true|false; default true): {enable_split}
+
+Produce output strictly in the Response Format JSON. Do not use Markdown.
+
+Examples
+
+Example — Aerospace domain with passive voice and units
+Input variables:
+
+Requirements:
+While in the Cruise_Mode, the Fuel_Flow shall be recorded by the <SOI>.
+The User shall configure the Navigation_Display brightness.
+The Airframe shall weigh about 500 lbs where possible.
+Enable split recommendations: true
+Expected output (abbreviated):
+{
+"review_metadata": {
+"rules_applied": ["R2","R3","R5","R6","R7","R8","R9"],
+"assumptions": ["Assume measurement_system = SI; placeholders used where exact values are unknown.", "Glossary defines <SOI>, Cruise_Mode, Fuel_Flow, Navigation_Display, Operator, Control_Interface, Basic_Configuration."]
+},
+"compliance_summary": {
+"total_requirements": 3,
+"pass_count": 0,
+"fail_count": 3,
+"issues_by_rule": {"R2": 1, "R3": 3, "R5": 0, "R6": 3, "R7": 1, "R8": 1, "R9": 0}
+},
+"requirements_review": [
+{
+"requirement_id": "REQ-001",
+"original": "While in the Cruise_Mode, the Fuel_Flow shall be recorded by the <SOI>.",
+"checks": {
+"R2": {"status":"fail","passive_voice_detected":true,"explanation":"Use active voice with the responsible entity as subject."},
+"R3": {"status":"fail","explanation":"Subject is not the declared entity; make <SOI> the subject."},
+"R5": {"status":"pass","explanation":"Defined entities use the definite article."},
+"R6": {"status":"fail","explanation":"Fuel_Flow units and sampling frequency are not stated."},
+"R7": {"status":"pass","explanation":""},
+"R8": {"status":"pass","explanation":""},
+"R9": {"status":"pass","explanation":""}
+},
+"proposed_rewrite": "The <SOI> shall record the Fuel_Flow in kg/s at a Sampling_Frequency of <sampling_rate> Hz while in the Cruise_Mode.",
+"split_recommendation": {"needed": false, "because": "Single action.", "split_into": []},
+"clarifying_questions": ["Specify the sampling_rate (Hz).", "Confirm the Fuel_Flow unit (e.g., kg/s).", "Define the storage location and retention period for recorded data."]
+},
+{
+"requirement_id": "REQ-002",
+"original": "The User shall configure the Navigation_Display brightness.",
+"checks": {
+"R2": {"status":"pass","explanation":"Active voice."},
+"R3": {"status":"fail","explanation":"Use <SOI> as subject; do not place requirements on the User."},
+"R5": {"status":"pass","explanation":"Definite article used for defined entities."},
+"R6": {"status":"fail","explanation":"Brightness lacks units and range."},
+"R7": {"status":"pass","explanation":""},
+"R8": {"status":"pass","explanation":""},
+"R9": {"status":"pass","explanation":""}
+},
+"proposed_rewrite": "The <SOI> shall allow the Operator to set the Navigation_Display Brightness from 10 cd/m^2 to 300 cd/m^2 in 1 cd/m^2 increments via the Control_Interface.",
+"split_recommendation": {"needed": false, "because": "Single configurable property.", "split_into": []},
+"clarifying_questions": ["Confirm the brightness range and increment.", "Specify any constraints by ambient illuminance (e.g., night mode limits)."]
+},
+{
+"requirement_id": "REQ-003",
+"original": "The Airframe shall weigh about 500 lbs where possible.",
+"checks": {
+"R2": {"status":"pass","explanation":"Active voice."},
+"R3": {"status":"fail","explanation":"Subject should be <SOI> at this requirement level; avoid lower-level elements unless scoped appropriately."},
+"R5": {"status":"pass","explanation":"Definite article used."},
+"R6": {"status":"fail","explanation":"Non-SI unit 'lbs' used; unit must match measurement_system and precision must be explicit."},
+"R7": {"status":"fail","vague_terms":["about"],"explanation":"Replace vague qualifier with measurable limit."},
+"R8": {"status":"fail","escape_clauses":["where possible"],"explanation":"Remove escape clause or state exact conditions."},
+"R9": {"status":"pass","explanation":""}
+},
+"proposed_rewrite": "The <SOI> shall have a Mass of not more than 227 kg in the Basic_Configuration.",
+"split_recommendation": {"needed": false, "because": "Single measurable constraint.", "split_into": []},
+"clarifying_questions": ["Confirm the configuration (e.g., Basic_Configuration vs. Fully_Equipped).", "Specify allowable tolerance (e.g., ±1 kg) if required."]
+}
+]
+}
+
+Now perform the review on the provided inputs and return only the Response Format JSON.

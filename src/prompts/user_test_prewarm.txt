@@ -1,0 +1,35 @@
+Task
+Review each requirement using the provided review context and produce a structured JSON evaluation with checks, a concise improved rewrite, and a split recommendation when applicable.
+
+Variables:
+- Requirements (list or newline-separated; may include IDs): {requirements}
+- Enable split recommendations (true|false; default true): {enable_split}
+
+Produce output strictly in the Response Format JSON. Do not use Markdown.
+
+Examples
+Example — Minimal vague requirement improved using provided budgets
+Input
+- Requirements: "The controller shall save data quickly during power loss."
+- enable_split: True
+
+Expected output
+{
+  "requirements_review": [
+    {
+      "requirement_id": "REQ-12",
+      "original": "The controller shall save data quickly during power loss.",
+      "checks": {
+        "L1": {"status":"pass","Subject and shall — Names the item and uses ‘shall’.":["Subject ‘The controller’ present; uses ‘shall’"],"explanation":"Grammatically correct subject and modal verb."},
+        "L2": {"status":"pass","One per requirement — Only one enforceable statement.":["Single action: save data"],"explanation":"No and/or or chained clauses."},
+        "L3": {"status":"fail","Positive, active, clear — Explicit trigger/condition.":["Missing explicit trigger for power loss"],"explanation":"No condition threshold/time specified for brownout."},
+        "L4": {"status":"fail","Measurable — Concrete criteria with units/tolerances/time.":["‘quickly’ is not measurable"],"explanation":"No time bound or integrity criterion."},
+        "L5": {"status":"fail","Unambiguous wording — No vague terms/open-ended phrases.":["Vague term: ‘quickly’"],"explanation":"Ambiguity prevents objective verification."},
+      },
+      "proposed_rewrite": "When input voltage drops below 10.0 V for more than 2 ms, the controller shall commit the current configuration to non-volatile memory within 100 ms without data corruption.",
+      "split_recommendation": {"needed": false, "because": "Single enforceable statement after rewrite.", "split_into": []}
+    }
+  ]
+}
+
+Now perform the review on the provided inputs and return only the Response Format JSON.
