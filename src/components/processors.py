@@ -70,7 +70,7 @@ def parse_llm_json_like(raw: str) -> Dict[str, Any]:
     return json.loads(repaired)
 
 
-class BasicOpenAIClient:
+class BasicOpenAIProcessor:
     def __init__(self, client: OpenAI, model: str):
         self.client = client
         self.model = model
