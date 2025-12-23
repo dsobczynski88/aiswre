@@ -3,12 +3,13 @@ import re
 import json
 import asyncio
 import time
+import ast
 import pandas as pd
 import flatdict
 from typing import Any, Dict, List, Optional, Sequence
 from openai.types.chat import ChatCompletion
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
-from src.components.promptrunner import RateLimitOpenAIClient
+from src.components.clients import RateLimitOpenAIClient
 
 def parse_llm_json_like(raw: str) -> Dict[str, Any]:
     """
