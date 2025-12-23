@@ -7,7 +7,6 @@ identify potential issues such as passive voice, vague verbs, indefinite article
 and other problematic constructs as referenced in the INCOSE guide.
 """
 
-
 from typing import Union, List, Sequence, Optional, Dict, Any
 from collections import Counter
 import inspect 

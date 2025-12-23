@@ -6,8 +6,8 @@ import pandas as pd
 from dotenv import dotenv_values
 from src import utils
 from src.components import prompteval as pe
-from src.components.promptrunner import RateLimitOpenAIClient
-from src.components.promptprocessor import PromptProcessor  # adjust import
+from src.components.clients import RateLimitOpenAIClient
+from src.components.processors import PromptProcessor  # adjust import
 from src.utils import load_prompt  # adjust import
 
 # ===============================================================
