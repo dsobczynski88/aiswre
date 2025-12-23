@@ -6,7 +6,8 @@ import time
 import ast
 import pandas as pd
 import flatdict
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
+from openai import OpenAI
 from openai.types.chat import ChatCompletion
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
 from src.components.clients import RateLimitOpenAIClient
@@ -68,6 +69,61 @@ def parse_llm_json_like(raw: str) -> Dict[str, Any]:
 
     return json.loads(repaired)
 
+
+class BasicOpenAIClient:
+    def __init__(self, client: OpenAI, model: str):
+        self.client = client
+        self.model = model
+        self.previous_response_ids: List[str] = []
+        self.previous_responses: List[str] = []
+
+    def get_response(
+        self,
+        input: Union[List, str],
+        print_response: bool = True,
+        store: bool = True,  # Kept for backwards compatibility
+        previous_response_id: Optional[str] = None,  # Kept for backwards compatibility
+        **kwargs
+        ):
+        # Provide the essentials, then allow override via kwargs
+        params = {
+            "model": self.model,
+            "input": input,
+            "store": store,
+            "previous_response_id": previous_response_id,
+        }
+        params.update(kwargs)  # allow all other supported/needed arguments
+
+        response = self.client.responses.create(**params)
+        self.previous_responses.append(response.output_text)
+        self.previous_response_ids.append(response.id)
+        if print_response:
+            print("Printing `response.output_text`:\n\n", response.output_text)
+        return response
+
+    def get_structured_response(
+        self,
+        messages,
+        response_format,
+        **kwargs
+        ):
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "response_format": response_format,
+        }
+        params.update(kwargs)
+
+        completion = self.client.beta.chat.completions.parse(**params)
+        return completion.choices[0].message
+
+    @staticmethod
+    def check_structured_output(completion):
+        # If the model refuses to respond, you will get a refusal message
+        if getattr(completion, "refusal", False):
+            print(completion.refusal)
+        else:
+            print(getattr(completion, "parsed", completion))
 
 class PromptProcessor:
     """
@@ -332,7 +388,7 @@ class PromptProcessor:
 # -----------------------------------------------------------------------------
 # Asynchronous top-level runner with dependency injection
 # -----------------------------------------------------------------------------
-async def main(
+async def workflow(
     system_message: str = "You are a code review assistant.",
     user_template: str = "Analyze this code snippet:\nLanguage: {language}\nCode:\n{code_snippet}",
     input_df: Optional[pd.DataFrame] = None,
