@@ -1,6 +1,11 @@
+import asyncio
+import time
+import pandas as pd
+from typing import List, Optional, Union, Dict, Any, Sequence
 from langgraph.graph import StateGraph
 from langchain_core.runnables.graph import RunnableGraph
 from src.components.clients import RateLimitOpenAIClient
+from src.components.processors import PromptProcessor, df_to_prompt_items
 from src.components.tc_review_agent.agents.evaluators import (
     make_traceability_evaluator,
     make_adequacy_evaluator,
@@ -95,3 +100,114 @@ def get_reviewer_runnable(
         max_tokens_per_minute=max_tokens_per_minute
     )
     return TestCaseReviewerRunnable(client=client, model=model_name, weights=weights)
+
+
+async def run_batch_test_case_review(
+    reviewer: TestCaseReviewerRunnable,
+    input_df: pd.DataFrame,
+    test_id_col: str = "test_id",
+    test_desc_col: str = "test_description",
+    req_id_col: Optional[str] = None,
+    req_text_col: Optional[str] = None,
+    ) -> pd.DataFrame:
+    """
+    Run batch test case reviews using utility functions and async batch pattern.
+
+    This helper method uses the df_to_prompt_items utility function to prepare data
+    from a DataFrame and then runs TestCaseReviewerRunnable graphs asynchronously.
+    Each task reviews a single test case, optionally against a corresponding requirement.
+
+    Args:
+        reviewer: TestCaseReviewerRunnable instance
+        input_df: DataFrame containing test cases and optional requirements
+        test_id_col: Column name for test case IDs (default: "test_id")
+        test_desc_col: Column name for test descriptions (default: "test_description")
+        req_id_col: Optional column name for requirement IDs
+        req_text_col: Optional column name for requirement text
+
+    Returns:
+        DataFrame with review results
+
+    Example:
+        >>> from dotenv import dotenv_values
+        >>> DOT_ENV = dotenv_values(".env")
+        >>>
+        >>> # Setup reviewer
+        >>> reviewer = get_reviewer_runnable(api_key=DOT_ENV["OPENAI_API_KEY"])
+        >>>
+        >>> # DataFrame with requirements
+        >>> df = pd.DataFrame({
+        ...     "test_id": ["TC-001", "TC-002"],
+        ...     "test_description": ["Verify alarm", "Check sound"],
+        ...     "req_id": ["REQ-001", "REQ-002"],
+        ...     "requirement_text": ["Trigger alarm", "Audible alarm"]
+        ... })
+        >>>
+        >>> results = await run_batch_test_case_review(
+        ...     reviewer=reviewer,
+        ...     input_df=df,
+        ...     req_id_col="req_id",
+        ...     req_text_col="requirement_text"
+        ... )
+    """
+    # Determine which columns to extract from DataFrame
+    columns = [test_id_col, test_desc_col]
+    if req_id_col:
+        columns.append(req_id_col)
+    if req_text_col:
+        columns.append(req_text_col)
+
+    # Use utility function to convert DataFrame to items
+    items = df_to_prompt_items(input_df, columns)
+    ids = [item[test_id_col] for item in items]
+
+    print(f"🚀 Starting batch review for {len(items)} test cases...")
+    start_time = time.time()
+
+    # Build list of tasks comprised of TestCaseReviewerRunnable graphs
+    tasks = []
+    for item in items:
+        # Create TestCase object
+        test_case = TestCase(
+            test_id=item[test_id_col],
+            description=item[test_desc_col]
+        )
+
+        # Create Requirement object if requirement columns provided
+        requirement = None
+        if req_text_col and req_text_col in item:
+            req_id = item.get(req_id_col) if req_id_col else None
+            requirement = Requirement(
+                req_id=req_id,
+                text=item[req_text_col]
+            )
+
+        # Create task using reviewer's arun method
+        task = reviewer.arun(requirement=requirement, test=test_case)
+        tasks.append(task)
+
+    # Run graphs asynchronously using asyncio.gather (like PromptProcessor.run_prompt_batch)
+    results = await asyncio.gather(*tasks)
+
+    elapsed = time.time() - start_time
+    print(f"✅ Completed {len(results)} reviews in {elapsed:.2f} seconds")
+
+    # Convert TraceLink results to DataFrame
+    result_rows = []
+    for i, result in enumerate(results):
+        row_data = {
+            "test_id": ids[i],
+            "trace_link": result,
+        }
+        # Extract TraceLink attributes if available
+        # TODO: Customize based on actual TraceLink model structure
+        if hasattr(result, "__dict__"):
+            for key, value in result.__dict__.items():
+                row_data[f"trace_link.{key}"] = value
+
+        result_rows.append(row_data)
+
+    results_df = pd.DataFrame(result_rows)
+
+    print(f"📊 Results DataFrame shape: {results_df.shape}")
+    return results_df
