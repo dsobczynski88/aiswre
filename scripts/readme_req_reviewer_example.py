@@ -6,8 +6,8 @@ import pandas as pd
 from dotenv import dotenv_values
 from src import utils
 from src.components import prompteval as pe
-from src.components.promptrunner import RateLimitOpenAIClient
-from src.components.promptprocessor import PromptProcessor  # adjust import
+from src.components.clients import RateLimitOpenAIClient
+from src.components.processors import OpenAIPromptProcessor, df_to_prompt_items, process_json_responses  # adjust import
 from src.utils import load_prompt  # adjust import
 
 # ===============================================================
@@ -45,8 +45,8 @@ rl_client = RateLimitOpenAIClient(
 # Async runner
 # ===============================================================
 async def run_req_review_with_processor(client, input_df, model, model_kwargs):
-    processor = PromptProcessor(client=client, input_df=input_df, model=model, model_kwargs=model_kwargs)
-    items = processor.df_to_prompt_items(df_input, ["requirement_id", "requirements"])
+    processor = OpenAIPromptProcessor(client=client, input_df=input_df, model=model, model_kwargs=model_kwargs)
+    items = df_to_prompt_items(df_input, ["requirement_id", "requirements"])
     ids = [item["requirement_id"] for item in items]
     results = await processor.run_prompt_batch(
         system_message=SYSTEM_PROMPT,
@@ -55,6 +55,7 @@ async def run_req_review_with_processor(client, input_df, model, model_kwargs):
         items=items,
         ids=ids,
     )
+    results = process_json_responses(results, ids, PROMPT_NAME)
     return pd.DataFrame(results)
 
 # ===============================================================
