@@ -1,12 +1,15 @@
 import os
 import re
 import json
+from tqdm.asyncio import tqdm_asyncio
 import asyncio
 import time
 import ast
 import pandas as pd
 import flatdict
 from typing import Any, Dict, List, Optional, Sequence, Union
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
@@ -106,7 +109,7 @@ def load_input_data(input_file: str) -> pd.DataFrame:
 def df_to_prompt_items(
     df: pd.DataFrame,
     columns: Optional[Sequence[str]] = None
-) -> List[Dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
     """
     Convert each row of DataFrame into a dict suitable for processing.
 
@@ -148,6 +151,140 @@ def df_to_prompt_items(
     # Explicitly coerce keys to str to satisfy type checker and intended use
     return [{str(k): v for k, v in record.items()} for record in records]
 
+def process_json_responses(
+    responses: Sequence[Any],
+    ids: Sequence[Any],
+    prompt_type: str,
+    ) -> List[Dict[str, Any]]:
+
+    processed: List[Dict[str, Any]] = []
+
+    for i, response in enumerate(responses):
+
+        base_output: Dict[str, Any] = {
+            "item_id": ids[i],
+            "prompt_type": prompt_type,
+        }
+
+        # -------------------------------------------------
+        # Handle None response
+        # -------------------------------------------------
+        if response is None:
+            processed.append({
+                **base_output,
+                "error": "Prompt failed after retry",
+            })
+            continue
+
+        # -------------------------------------------------
+        # Extract content
+        # -------------------------------------------------
+        try:
+            if isinstance(response, ParsedChatCompletion):
+                content = response.choices[0].message.content
+            elif isinstance(response, dict) and "response" in response:
+                content = response["response"].content
+            else:
+                content = str(response)
+        except Exception as e:
+            processed.append({
+                **base_output,
+                "processing_error": str(e),
+                "raw_response": str(response),
+            })
+            continue
+
+        # -------------------------------------------------
+        # Parse JSON (robust)
+        # -------------------------------------------------
+        try:
+            response_json = parse_llm_json_like(content)
+        except Exception as e:
+            processed.append({
+                **base_output,
+                "json_parse_error": str(e),
+                "raw_response": content,
+            })
+            continue
+
+        # -------------------------------------------------
+        # Collect shared + row-level structures
+        # -------------------------------------------------
+        shared_flat: Dict[str, Any] = {}
+        row_expanders: List[List[Dict[str, Any]]] = []
+
+        for key, value in response_json.items():
+
+            # ------------------------------
+            # Case 1: dict → shared columns
+            # ------------------------------
+            if isinstance(value, dict):
+                flat = flatdict.FlatDict(value, delimiter=".")
+                shared_flat.update({f"{key}.{k}": v for k, v in flat.items()})
+
+            # -------------------------------------------------------
+            # Case 2: list of dicts → row-expanding structure
+            # -------------------------------------------------------
+            elif (
+                isinstance(value, list)
+                and value
+                and all(isinstance(v, dict) for v in value)
+            ):
+                expanded_rows: List[Dict[str, Any]] = []
+                for idx, item in enumerate(value):
+                    flat = flatdict.FlatDict(item, delimiter=".")
+                    expanded_rows.append(
+                        {
+                            f"{key}.{k}": v
+                            for k, v in flat.items()
+                        }
+                    )
+                row_expanders.append(expanded_rows)
+
+            # ------------------------------
+            # Case 3: scalar
+            # ------------------------------
+            else:
+                shared_flat[key] = value
+
+        # -------------------------------------------------
+        # Combine shared + expanded rows
+        # -------------------------------------------------
+
+        if row_expanders:
+            # Currently supports 1 expanding list cleanly
+            for idx, row_payload in enumerate(row_expanders[0]):
+                final_row = {
+                    **base_output,
+                    **shared_flat,
+                    **row_payload,
+                    "raw_response": content,
+                }
+                processed.append(final_row)
+        else:
+            processed.append({
+                **base_output,
+                **shared_flat,
+                "raw_response": content,
+            })
+
+        # -------------------------------------------------
+        # Token usage (if available)
+        # -------------------------------------------------
+        usage = getattr(response, "usage", None)
+        if usage:
+            last_rows = processed[-len(row_expanders[0]):] if row_expanders else [processed[-1]]
+            for row in last_rows:
+                try:
+                    row.update(dict(usage))
+                    for sub_key in ("prompt_tokens_details", "completion_tokens_details"):
+                        sub = getattr(usage, sub_key, None)
+                        if sub:
+                            row.update(dict(sub))
+                except Exception:
+                    pass
+
+    return processed
 
 class BasicOpenAIProcessor:
     def __init__(self, client: OpenAI, model: str):
@@ -204,12 +341,11 @@ class BasicOpenAIProcessor:
         else:
             print(getattr(completion, "parsed", completion))
 
-class PromptProcessor:
+class OpenAIPromptProcessor:
     """
     Process prompts asynchronously using RateLimitOpenAIClient with token and request throttling.
     Handles prompt creation, OpenAI API calls, and JSON response normalization.
     """
-
     def __init__(
         self,
         client: RateLimitOpenAIClient,
@@ -236,8 +372,6 @@ class PromptProcessor:
         self.input_file = input_file
         self.output_dir = output_dir
         self.model = model
-        self.pdf_directory = pdf_directory
-        self.use_rag = use_rag
         self.input_df = input_df
         self.model_kwargs = model_kwargs
 
@@ -268,142 +402,6 @@ class PromptProcessor:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    async def process_json_responses(
-        self,
-        responses: Sequence[Any],
-        ids: Sequence[Any],
-        prompt_type: str,
-        ) -> List[Dict[str, Any]]:
-
-        processed: List[Dict[str, Any]] = []
-
-        for i, response in enumerate(responses):
-
-            base_output: Dict[str, Any] = {
-                "item_id": ids[i],
-                "prompt_type": prompt_type,
-            }
-
-            # -------------------------------------------------
-            # Handle None response
-            # -------------------------------------------------
-            if response is None:
-                processed.append({
-                    **base_output,
-                    "error": "Prompt failed after retry",
-                })
-                continue
-
-            # -------------------------------------------------
-            # Extract content
-            # -------------------------------------------------
-            try:
-                if isinstance(response, ParsedChatCompletion):
-                    content = response.choices[0].message.content
-                elif isinstance(response, dict) and "response" in response:
-                    content = response["response"].content
-                else:
-                    content = str(response)
-            except Exception as e:
-                processed.append({
-                    **base_output,
-                    "processing_error": str(e),
-                    "raw_response": str(response),
-                })
-                continue
-
-            # -------------------------------------------------
-            # Parse JSON (robust)
-            # -------------------------------------------------
-            try:
-                response_json = parse_llm_json_like(content)
-            except Exception as e:
-                processed.append({
-                    **base_output,
-                    "json_parse_error": str(e),
-                    "raw_response": content,
-                })
-                continue
-
-            # -------------------------------------------------
-            # Collect shared + row-level structures
-            # -------------------------------------------------
-            shared_flat: Dict[str, Any] = {}
-            row_expanders: List[List[Dict[str, Any]]] = []
-
-            for key, value in response_json.items():
-
-                # ------------------------------
-                # Case 1: dict → shared columns
-                # ------------------------------
-                if isinstance(value, dict):
-                    flat = flatdict.FlatDict(value, delimiter=".")
-                    shared_flat.update({f"{key}.{k}": v for k, v in flat.items()})
-
-                # -------------------------------------------------------
-                # Case 2: list of dicts → row-expanding structure
-                # -------------------------------------------------------
-                elif (
-                    isinstance(value, list)
-                    and value
-                    and all(isinstance(v, dict) for v in value)
-                ):
-                    expanded_rows: List[Dict[str, Any]] = []
-                    for idx, item in enumerate(value):
-                        flat = flatdict.FlatDict(item, delimiter=".")
-                        expanded_rows.append(
-                            {
-                                f"{key}.{k}": v
-                                for k, v in flat.items()
-                            }
-                        )
-                    row_expanders.append(expanded_rows)
-
-                # ------------------------------
-                # Case 3: scalar
-                # ------------------------------
-                else:
-                    shared_flat[key] = value
-
-            # -------------------------------------------------
-            # Combine shared + expanded rows
-            # -------------------------------------------------
-
-            if row_expanders:
-                # Currently supports 1 expanding list cleanly
-                for idx, row_payload in enumerate(row_expanders[0]):
-                    final_row = {
-                        **base_output,
-                        **shared_flat,
-                        **row_payload,
-                        "raw_response": content,
-                    }
-                    processed.append(final_row)
-            else:
-                processed.append({
-                    **base_output,
-                    **shared_flat,
-                    "raw_response": content,
-                })
-
-            # -------------------------------------------------
-            # Token usage (if available)
-            # -------------------------------------------------
-            usage = getattr(response, "usage", None)
-            if usage:
-                last_rows = processed[-len(row_expanders[0]):] if row_expanders else [processed[-1]]
-                for row in last_rows:
-                    try:
-                        row.update(dict(usage))
-                        for sub_key in ("prompt_tokens_details", "completion_tokens_details"):
-                            sub = getattr(usage, sub_key, None)
-                            if sub:
-                                row.update(dict(sub))
-                    except Exception:
-                        pass
-
-        return processed
-
     async def run_prompt_batch(
         self,
         system_message: str,
@@ -414,7 +412,10 @@ class PromptProcessor:
         json_key: Optional[str] = None,
         ) -> List[Dict[str, Any]]:
         """
-        Run multiple prompts asynchronously through the rate-limited OpenAI backend.
+        1-Format the input prompts via provided input items
+        2-Collect the asynchronous tasks
+        3-Run all prompts asynchronously through the rate-limited OpenAI backend
+        4-Return a list of responses
         """
         ids = list(ids) if ids is not None else list(range(len(items)))
 
@@ -429,9 +430,211 @@ class PromptProcessor:
         # Execute async API calls concurrently
         tasks = [self._call_openai(system_message, user_msg) for user_msg in formatted_prompts]
         responses = await asyncio.gather(*tasks)
-        return await self.process_json_responses(responses, ids, prompt_name)
+        return responses
 
+class OllamaPromptProcessor:
+    def __init__(self, 
+        client: ChatOllama,
+        input_file: Optional[str] = None, 
+        output_dir: str = ".", 
+        model: str = "llama3",
+        input_df: Optional[pd.DataFrame] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Initialize the prompt processor.
+        
+        Args:
+            input_file: Path to the input file (CSV, Excel, etc.)
+            output_dir: Directory to save output results
+            model: LLM model to use for processing
+            pdf_directory: Directory containing PDF files for RAG (optional)
+            use_rag: Whether to use RAG functionality
+            input_df: Optional dataframe to use directly instead of loading from file
+            model_kwargs: Additional kwargs for the LLM model
+        
+        Raises:
+            ValueError: If neither input_file nor input_df is provided
+        """
+        self.client = client
+        self.input_file = input_file
+        self.output_dir = output_dir
+        self.model = model
+        self.input_df = input_df
+        self.model_kwargs = model_kwargs or {
+            "temperature": 0.3,
+            "format": "json",
+            "keep_alive": "1h"
+            }
+        self.last_port = None
 
+        # Load data if needed
+        if self.input_df is None and self.input_file:
+            self.input_df = load_input_data(self.input_file)
+        elif self.input_df is None and not self.input_file:
+            raise ValueError("Either input_file or input_df must be provided")
+        
+    async def run_prompt_batch(self, 
+        system_message: str, 
+        user_message_template: str, 
+        prompt_name: str, 
+        items: List[Dict[str, Any]], 
+        ids: List[Any] = None, 
+        json_key: str = None,
+        start_port: int = 11434,
+        num_ports: int = 1) -> List[Dict]:
+        """
+        1-Format the input prompts via provided input items
+        2-Collect the asynchronous tasks
+        3-Run all prompts asynchronously through the rate-limited OpenAI backend
+        4-Return a list of responses
+        
+        Args:
+            system_message: System message for the LLM
+            user_message_template: Template with {variable} placeholders
+            prompt_name: Name of the prompt for tracking
+            items: List of dictionaries with template variables
+            ids: Optional identifiers for each item
+            json_key: Optional key to extract from JSON response
+            num_ports: Number of Ollama instances to use
+            
+        Returns:
+            List of processed responses
+        """
+        # Use sequential IDs if none provided
+        if ids is None:
+            ids = list(range(len(items)))
+        
+        # Format all user messages
+        formatted_messages = []
+        for item in items:
+            user_msg = user_message_template
+            for key, value in item.items():
+                placeholder = f"{{{key}}}"
+                if placeholder in user_msg:
+                    user_msg = user_msg.replace(placeholder, str(value))
+            formatted_messages.append(user_msg)
+        
+        # Configure multiple Ollama instances
+        PORTS=[]
+        port_range=list(np.arange(0, num_ports, 1))
+        for p in port_range:
+            PORTS.append(start_port+p)
+        self.last_port = PORTS[-1]
+        
+        models = [
+            self.client(
+                model=self.model,
+                base_url=f"http://localhost:{port}",
+                **self.model_kwargs
+            )
+            for port in PORTS
+        ]
+        
+        # Create a shared counter for overall progress
+        total_messages = len(formatted_messages)
+        processed_count = 0
+        
+        # Create a lock for updating the counter
+        counter_lock = asyncio.Lock()
+
+        async def process_message(model, message):
+            """Process a single message with retry logic"""
+            nonlocal processed_count
+            
+            # Try with one retry on failure
+            for attempt in range(2):
+                try:
+                    # Use SystemMessage and HumanMessage directly to avoid template issues
+                    result = await model.ainvoke([
+                        SystemMessage(content=system_message),
+                        HumanMessage(content=message)
+                    ])
+                    
+                    # Update the counter
+                    async with counter_lock:
+                        processed_count += 1
+                        
+                    return result
+                except Exception as e:
+                    if attempt == 0:
+                        print(f"Error: {str(e)}. Retrying...")
+                    else:
+                        print(f"Retry failed. Skipping this message.")
+                        # Update the counter even for failed messages
+                        async with counter_lock:
+                            processed_count += 1
+                        return {}
+        
+        async def process_distributed(messages, models):
+            """Distribute messages across available models with progress tracking"""
+            # Calculate chunk size for each model
+            num_models = len(models)
+            try:
+                # Original calculation that might cause ZeroDivisionError
+                chunk_size = (len(messages) + num_models - 1) // num_models
+            except ZeroDivisionError:
+                # If num_models is 0 or division error occurs, set chunk_size to handle all messages
+                raise
+            
+            # Create chunks of messages
+            chunks = [
+                messages[i:i + chunk_size] 
+                for i in range(0, len(messages), chunk_size)
+            ]
+            
+            # Create the main progress bar
+            main_progress = tqdm_asyncio(
+                total=total_messages,
+                desc="Overall Progress",
+                position=0,
+                leave=True
+            )
+            
+            # Process each chunk with a dedicated model
+            async def process_chunk(model, chunk):
+                results = []
+                for msg in chunk:
+                    result = await process_message(model, msg)
+                    results.append(result)
+                    # Update the main progress bar
+                    main_progress.update(1)
+                return results
+            
+            # Run all chunks in parallel
+            print(f"Processing {len(messages)} messages using {len(models)} Ollama instances...")
+            results_nested = await asyncio.gather(*[
+                process_chunk(models[i], chunks[i]) 
+                for i in range(min(len(chunks), len(models)))
+            ])
+            
+            # Close the progress bar
+            main_progress.close()
+            
+            # Flatten results
+            return [item for sublist in results_nested for item in sublist]
+        
+        # Process all messages in parallel with progress tracking
+        start_time = time.time()
+        responses = await process_distributed(formatted_messages, models)
+        elapsed = time.time() - start_time
+        print(f"Processed {len(responses)} messages in {elapsed:.2f}s")
+        
+        # Prepare results with IDs
+        result_items = []
+        for item_id, response in zip(ids, responses):
+            if response is not None:
+                result_items.append({
+                    "id": item_id,
+                    "response": response,
+                    "prompt_name": prompt_name
+                })
+            else:
+                print(f"Warning: Item with ID {item_id} failed to process")
+        
+        # Process JSON responses
+        return result_items
+        
+        
 # -----------------------------------------------------------------------------
 # GraphProcessor - For running LangGraph graphs asynchronously
 # -----------------------------------------------------------------------------
@@ -450,7 +653,7 @@ class GraphProcessor:
         output_dir: str = "./output",
         input_df: Optional[pd.DataFrame] = None,
         graph_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> None:
+        ) -> None:
         """
         Args:
             graph_runnable: LangGraph runnable instance (e.g., TestCaseReviewerRunnable)
@@ -477,104 +680,15 @@ class GraphProcessor:
 
         Args:
             graph_input: Dictionary of input parameters for the graph
-
         Returns:
             The graph output (structure depends on graph implementation)
         """
         try:
             # Run the graph with provided input and any additional kwargs
-            result = await self.graph_runnable.arun(**graph_input, **self.graph_kwargs)
+            result = await self.graph_runnable.ainvoke(**graph_input, **self.graph_kwargs)
             return result
         except Exception as e:
             return {"error": str(e), "input": graph_input}
-
-    async def process_graph_results(
-        self,
-        results: Sequence[Any],
-        ids: Sequence[Any],
-        graph_name: str,
-    ) -> List[Dict[str, Any]]:
-        """
-        Process graph execution results into structured dictionaries.
-
-        Similar to process_json_responses but for graph outputs.
-
-        Args:
-            results: Sequence of graph execution results
-            ids: Sequence of IDs corresponding to each result
-            graph_name: Name/identifier for the graph type
-
-        Returns:
-            List of dictionaries with flattened result data
-        """
-        processed: List[Dict[str, Any]] = []
-
-        for i, result in enumerate(results):
-            base_output: Dict[str, Any] = {
-                "item_id": ids[i],
-                "graph_name": graph_name,
-            }
-
-            # -------------------------------------------------
-            # Handle None or error results
-            # -------------------------------------------------
-            if result is None:
-                processed.append({
-                    **base_output,
-                    "error": "Graph execution returned None",
-                })
-                continue
-
-            if isinstance(result, dict) and "error" in result:
-                processed.append({
-                    **base_output,
-                    **result,
-                })
-                continue
-
-            # -------------------------------------------------
-            # Process successful graph results
-            # -------------------------------------------------
-            try:
-                # If result is a Pydantic model or has __dict__, extract attributes
-                if hasattr(result, "__dict__"):
-                    result_dict = {}
-                    for key, value in result.__dict__.items():
-                        # Skip private attributes
-                        if not key.startswith("_"):
-                            result_dict[key] = value
-
-                    # Flatten nested structures using flatdict
-                    flat = flatdict.FlatDict(result_dict, delimiter=".")
-                    processed.append({
-                        **base_output,
-                        **dict(flat),
-                        "raw_result": str(result),
-                    })
-
-                # If result is already a dict
-                elif isinstance(result, dict):
-                    flat = flatdict.FlatDict(result, delimiter=".")
-                    processed.append({
-                        **base_output,
-                        **dict(flat),
-                    })
-
-                # If result is a simple type
-                else:
-                    processed.append({
-                        **base_output,
-                        "result": result,
-                    })
-
-            except Exception as e:
-                processed.append({
-                    **base_output,
-                    "processing_error": str(e),
-                    "raw_result": str(result),
-                })
-
-        return processed
 
     async def run_graph_batch(
         self,
@@ -593,15 +707,7 @@ class GraphProcessor:
             graph_name: Name/identifier for the graph type
 
         Returns:
-            List of processed result dictionaries
-
-        Example:
-            >>> processor = GraphProcessor(graph_runnable=reviewer_graph)
-            >>> items = [
-            ...     {"requirement": req1, "test": tc1},
-            ...     {"requirement": req2, "test": tc2},
-            ... ]
-            >>> results = await processor.run_graph_batch(items, ids=["TC-001", "TC-002"])
+            List of responses
         """
         ids = list(ids) if ids is not None else list(range(len(items)))
 
@@ -614,6 +720,4 @@ class GraphProcessor:
 
         elapsed = time.time() - start_time
         print(f"✅ Completed {len(results)} graph executions in {elapsed:.2f} seconds")
-
-        # Process and flatten results
-        return await self.process_graph_results(results, ids, graph_name)
+        return results
