@@ -1,27 +1,152 @@
-# pyproject.toml
 [build-system]
-requires = [
-    "setuptools",
-    "wheel"
-]
+requires = ["setuptools>=69.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiswre"
-version = "0.0.1"
-description = "NLP and AI Toolkit for Software Requirements Engineering"
+version = "0.1.0"
+description = "AI System for Writing Requirements Engineering - NLP and AI toolkit for improving software requirement and test case quality"
 authors = [
     {name = "Daniel Sobczynski", email = "dsobczynski88@gmail.com"},
 ]
+readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.10"
+keywords = [
+    "requirements-engineering",
+    "software-quality",
+    "nlp",
+    "ai",
+    "incose",
+    "test-case-review",
+    "langchain",
+    "langgraph"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+]
 
-[tools.setuptools]
+dependencies = [
+    # Core LLM and AI frameworks
+    "openai>=1.60.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-ollama>=0.2.0",
+    "langchain-community>=0.3.0",
+    "langgraph>=0.2.0",
+
+    # Data validation and models
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.8.0",
+
+    # Data processing
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "openpyxl>=3.1.0",  # Excel I/O
+
+    # NLP
+    "nltk>=3.8.0",
+
+    # Document processing
+    "PyMuPDF>=1.25.0",  # PDF extraction
+
+    # Utilities
+    "flatdict>=4.0.0",
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+    "tqdm>=4.67.0",
+    "nest-asyncio>=1.6.0",
+    "tiktoken>=0.8.0",  # Token counting
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.0.0",
+    "ipython>=8.29.0",
+]
+
+# Jupyter notebook support
+jupyter = [
+    "jupyter>=1.1.0",
+    "jupyterlab>=4.2.0",
+    "ipykernel>=6.29.0",
+    "notebook>=7.2.0",
+    "ipywidgets>=8.1.0",
+]
+
+# Visualization and analysis
+viz = [
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "plotly>=5.18.0",
+]
+
+# All optional dependencies
+all = [
+    "aiswre[dev,jupyter,viz]",
+]
+
+[project.urls]
+Homepage = "https://github.com/dsobczynski88/aiswre"
+Repository = "https://github.com/dsobczynski88/aiswre"
+Issues = "https://github.com/dsobczynski88/aiswre/issues"
+
+[tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.packages]
-find = {}
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+exclude = ["src/data*", "*.tests", "*.tests.*", "tests.*", "tests"]
 
-[tools.setuptools.packages.find]
-where = ["src*"]
-exclude = ["src/data*"]
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.yaml", "*.yml", "*.json", "*.pdf"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | \.eggs
+  | \.tox
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
