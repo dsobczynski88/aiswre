@@ -14,8 +14,10 @@ class TestCaseState(TypedDict, total=False):
     """State for LangGraph medtech test case review pipeline."""
     requirement: Optional['Requirement']
     test: 'TestCase'
-    # Use Annotated with operator.add to allow concurrent updates from parallel nodes
-    medtech_links: Annotated[List['MedtechTraceLink'], operator.add]
+    # Raw evaluator responses (dicts with "type" and "data" keys)
+    raw_evaluator_responses: Annotated[List[dict], operator.add]
+    # Converted trace links (proper MedtechTraceLink objects)
+    medtech_links: List['MedtechTraceLink']
     final_result: Optional['MedtechTraceLink']  # Final aggregated result
 
 

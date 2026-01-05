@@ -76,7 +76,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "Unambiguity", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "Unambiguity", "data": result}]}
 
     return evaluator_node
 
@@ -123,7 +123,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "Independence", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "Independence", "data": result}]}
 
     return evaluator_node
 
@@ -165,7 +165,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "Preconditions", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "Preconditions", "data": result}]}
 
     return evaluator_node
 
@@ -207,7 +207,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "Postconditions", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "Postconditions", "data": result}]}
 
     return evaluator_node
 
@@ -265,7 +265,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "TechniqueApplication", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "TechniqueApplication", "data": result}]}
 
     return evaluator_node
 
@@ -310,7 +310,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "NegativeTesting", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "NegativeTesting", "data": result}]}
 
     return evaluator_node
 
@@ -357,7 +357,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "BoundaryChecks", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "BoundaryChecks", "data": result}]}
 
     return evaluator_node
 
@@ -407,7 +407,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "RiskVerification", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "RiskVerification", "data": result}]}
 
     return evaluator_node
 
@@ -458,7 +458,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "Traceability", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "Traceability", "data": result}]}
 
     return evaluator_node
 
@@ -508,7 +508,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "SafetyClassRigor", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "SafetyClassRigor", "data": result}]}
 
     return evaluator_node
 
@@ -554,6 +554,6 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
         ]
 
         result = structured_llm.invoke(messages)
-        return {"medtech_links": [{"type": "ObjectiveEvidence", "data": result}]}
+        return {"raw_evaluator_responses": [{"type": "ObjectiveEvidence", "data": result}]}
 
     return evaluator_node

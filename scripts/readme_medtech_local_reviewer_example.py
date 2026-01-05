@@ -13,8 +13,16 @@ Usage:
     # Single Ollama instance
     python scripts/readme_medtech_local_reviewer_example.py
 
-    # Multi-port for parallel execution (start multiple ollama instances first)
+    # Multi-port with auto-detection (automatically finds running Ollama instances)
     python scripts/readme_medtech_local_reviewer_example.py --multi-port
+
+Note:
+    - With --multi-port, the script automatically detects all running Ollama instances
+    - To start multiple Ollama instances, use: shell/gpus_setup_for_ollama.sh
+    - Or manually start instances on different ports:
+        Terminal 1: OLLAMA_HOST=0.0.0.0:11434 ollama serve
+        Terminal 2: OLLAMA_HOST=0.0.0.0:11435 ollama serve
+        Terminal 3: OLLAMA_HOST=0.0.0.0:11436 ollama serve
 """
 
 import asyncio
@@ -23,6 +31,7 @@ import pandas as pd
 from src.components.tc_review_agent_medtech_local import (
     get_medtech_local_reviewer_runnable,
     run_batch_medtech_local_test_case_review,
+    detect_ollama_ports,
     TestCase,
     Requirement
 )
@@ -136,7 +145,6 @@ async def main(use_multi_port: bool = False):
     print("=" * 70)
     print()
     print(f"Model: {MODEL}")
-    print(f"Mode: {'Multi-Port Parallel' if use_multi_port else 'Single Port'}")
     print()
 
     # Create sample data
@@ -148,19 +156,21 @@ async def main(use_multi_port: bool = False):
     # Run batch review
     if use_multi_port:
         print("Using multi-port parallelization for faster processing...")
-        print(f"Ports: {MULTI_PORTS}")
+        print("Auto-detecting active Ollama instances...")
         print()
 
+        # Auto-detect available ports
         results = await run_batch_medtech_local_test_case_review(
             test_cases=test_cases,
             requirements=requirements,
             model=MODEL,
-            base_urls=MULTI_PORTS,
+            base_urls=None,  # Auto-detect
             weights=CUSTOM_WEIGHTS,
-            max_concurrent=len(MULTI_PORTS)
+            auto_detect_ports=True,
+            max_concurrent=10  # Allow up to 10 concurrent reviews
         )
     else:
-        print("Using single port (sequential processing)...")
+        print("Using single port mode...")
         print(f"Port: {SINGLE_PORT}")
         print()
 
@@ -170,6 +180,7 @@ async def main(use_multi_port: bool = False):
             model=MODEL,
             base_urls=[SINGLE_PORT],
             weights=CUSTOM_WEIGHTS,
+            auto_detect_ports=False,
             max_concurrent=1
         )
 
