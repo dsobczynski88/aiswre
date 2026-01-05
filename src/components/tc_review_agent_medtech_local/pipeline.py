@@ -7,6 +7,8 @@ against FDA/IEC 62304 best practices using local Ollama models.
 
 import asyncio
 import logging
+import subprocess
+import json
 from typing import List, Optional, Dict, Any
 from langgraph.graph import StateGraph, START, END
 
@@ -25,6 +27,54 @@ from .evaluators import (
     make_objective_evidence_evaluator
 )
 from .nodes import create_aggregator_node, convert_evaluator_responses_to_tracelinks
+
+
+def detect_ollama_ports(
+    base_port: int = 11434,
+    max_ports: int = 10,
+    host: str = "localhost"
+) -> List[str]:
+    """
+    Detect active Ollama instances by checking which ports respond to API calls.
+
+    Args:
+        base_port: Starting port to check (default: 11434)
+        max_ports: Maximum number of ports to check (default: 10)
+        host: Hostname to check (default: localhost)
+
+    Returns:
+        List of URLs for active Ollama instances (e.g., ["http://localhost:11434", ...])
+    """
+    import urllib.request
+    import urllib.error
+
+    active_ports = []
+
+    for i in range(max_ports):
+        port = base_port + i
+        url = f"http://{host}:{port}/api/version"
+
+        try:
+            # Try to connect to the Ollama API version endpoint
+            req = urllib.request.Request(url, method='GET')
+            with urllib.request.urlopen(req, timeout=1) as response:
+                if response.status == 200:
+                    base_url = f"http://{host}:{port}"
+                    active_ports.append(base_url)
+                    logging.info(f"Found active Ollama instance at {base_url}")
+        except (urllib.error.URLError, OSError, TimeoutError):
+            # Port is not responding, skip it
+            pass
+
+    if not active_ports:
+        logging.warning(
+            f"No active Ollama instances found on {host}:{base_port}-{base_port + max_ports - 1}. "
+            f"Make sure Ollama is running."
+        )
+        # Return default port as fallback
+        return [f"http://{host}:{base_port}"]
+
+    return active_ports
 
 
 class MedtechLocalTestCaseReviewerRunnable:
@@ -86,12 +136,9 @@ class MedtechLocalTestCaseReviewerRunnable:
         # Create conversion middleware node
         def convert_node(state: dict) -> dict:
             """Convert raw evaluator responses to MedtechTraceLink objects."""
-            raw_links = state.get('medtech_links', [])
-            if raw_links and isinstance(raw_links[0], dict):
-                # Convert raw responses to proper trace links
-                trace_links = convert_evaluator_responses_to_tracelinks(state, raw_links)
-                return {"medtech_links": trace_links}
-            return {"medtech_links": raw_links}
+            # Convert raw responses to proper trace links
+            trace_links = convert_evaluator_responses_to_tracelinks(state)
+            return {"medtech_links": trace_links}
 
         # Create aggregator
         aggregator = create_aggregator_node(
@@ -197,7 +244,8 @@ async def run_batch_medtech_local_test_case_review(
     base_urls: Optional[List[str]] = None,
     temperature: float = 0.0,
     weights: Optional[dict] = None,
-    max_concurrent: int = 3
+    max_concurrent: int = 3,
+    auto_detect_ports: bool = True
 ) -> List[MedtechTraceLink]:
     """
     Run batch review of test cases against medtech checklist using Ollama with multi-port support.
@@ -208,16 +256,23 @@ async def run_batch_medtech_local_test_case_review(
         model: Ollama model name
         base_urls: List of Ollama URLs for multi-port execution
                    (e.g., ["http://localhost:11434", "http://localhost:11435"])
-                   If None, uses single instance at default port
+                   If None and auto_detect_ports=True, will auto-detect active Ollama instances
+                   If None and auto_detect_ports=False, uses ["http://localhost:11434"]
         temperature: LLM temperature
         weights: Optional score weights for aggregation
         max_concurrent: Maximum concurrent reviews
+        auto_detect_ports: If True and base_urls is None, automatically detect active Ollama ports
 
     Returns:
         List of MedtechTraceLink results
     """
     if base_urls is None:
-        base_urls = ["http://localhost:11434"]
+        if auto_detect_ports:
+            logging.info("Auto-detecting active Ollama instances...")
+            base_urls = detect_ollama_ports()
+            logging.info(f"Found {len(base_urls)} active Ollama instance(s): {base_urls}")
+        else:
+            base_urls = ["http://localhost:11434"]
 
     results = []
 
@@ -248,6 +303,7 @@ async def run_batch_medtech_local_test_case_review(
             state = {
                 "test": test,
                 "requirement": req,
+                "raw_evaluator_responses": [],
                 "medtech_links": [],
                 "final_result": None
             }

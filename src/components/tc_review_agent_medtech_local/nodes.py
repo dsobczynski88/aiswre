@@ -32,21 +32,20 @@ from .core import (
 
 
 def convert_evaluator_responses_to_tracelinks(
-    state: dict,
-    raw_links: List[Dict[str, Any]]
+    state: dict
 ) -> List[MedtechTraceLink]:
     """
     Convert raw evaluator response dictionaries to MedtechTraceLink objects.
 
     Args:
-        state: Current graph state with test and requirement info
-        raw_links: List of dicts with {"type": "...", "data": <ResponseModel>}
+        state: Current graph state with test, requirement, and raw evaluator responses
 
     Returns:
         List of MedtechTraceLink objects with appropriate scores and issues
     """
     requirement = state.get('requirement')
     test = state.get('test')
+    raw_links = state.get('raw_evaluator_responses', [])
 
     trace_links = []
 

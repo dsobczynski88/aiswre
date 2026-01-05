@@ -27,7 +27,8 @@ from .core import (
 from .pipeline import (
     MedtechLocalTestCaseReviewerRunnable,
     get_medtech_local_reviewer_runnable,
-    run_batch_medtech_local_test_case_review
+    run_batch_medtech_local_test_case_review,
+    detect_ollama_ports
 )
 
 __all__ = [
@@ -37,5 +38,6 @@ __all__ = [
     'MedtechTraceLink',
     'MedtechLocalTestCaseReviewerRunnable',
     'get_medtech_local_reviewer_runnable',
-    'run_batch_medtech_local_test_case_review'
+    'run_batch_medtech_local_test_case_review',
+    'detect_ollama_ports'
 ]
