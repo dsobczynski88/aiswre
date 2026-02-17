@@ -6,10 +6,12 @@ Usage:
 """
 
 import asyncio
+import pandas as pd
 from dotenv import dotenv_values
 from langchain_openai import ChatOpenAI
 from aiswre.components.rtm_review_agent_medtech.pipeline import RTMReviewerRunnable
 from aiswre.components.rtm_review_agent_medtech.core import Requirement, TestCase
+from aiswre.components.processors import process_json_responses
 
 # ============================================================================
 # Configuration
@@ -29,7 +31,7 @@ def create_sample_data():
 
     requirement = Requirement(
         req_id="REQ-001",
-        text="The system shall measure temperature in the range 35.0-42.0°C with accuracy ±0.1°C",
+        text="The system shall measure temperature in the range 35.0-42.0\u00b0C with accuracy \u00b10.1\u00b0C",
     )
 
     test_cases = [
@@ -37,22 +39,22 @@ def create_sample_data():
             test_id="TC-001",
             description="Verify temperature measurement at lower boundary",
             setup="System powered on, calibrated sensor connected",
-            steps="1. Set reference temp to 35.0°C\n2. Initiate measurement\n3. Record result",
-            expectedResults="Display reads 35.0°C ±0.1°C",
+            steps="1. Set reference temp to 35.0\u00b0C\n2. Initiate measurement\n3. Record result",
+            expectedResults="Display reads 35.0\u00b0C \u00b10.1\u00b0C",
         ),
         TestCase(
             test_id="TC-002",
             description="Verify temperature measurement at upper boundary",
             setup="System powered on, calibrated sensor connected",
-            steps="1. Set reference temp to 42.0°C\n2. Initiate measurement\n3. Record result",
-            expectedResults="Display reads 42.0°C ±0.1°C",
+            steps="1. Set reference temp to 42.0\u00b0C\n2. Initiate measurement\n3. Record result",
+            expectedResults="Display reads 42.0\u00b0C \u00b10.1\u00b0C",
         ),
         TestCase(
             test_id="TC-003",
             description="Verify temperature measurement at nominal value",
             setup="System powered on, calibrated sensor connected",
-            steps="1. Set reference temp to 37.0°C\n2. Initiate measurement\n3. Record result",
-            expectedResults="Display reads 37.0°C ±0.1°C",
+            steps="1. Set reference temp to 37.0\u00b0C\n2. Initiate measurement\n3. Record result",
+            expectedResults="Display reads 37.0\u00b0C \u00b10.1\u00b0C",
         ),
     ]
 
@@ -92,26 +94,39 @@ async def main():
     # Invoke the graph
     result = await simple_graph.ainvoke(input_state)
 
-    # Display decomposed requirement
-    print("-" * 70)
-    print("DECOMPOSED REQUIREMENT")
-    print("-" * 70)
+    # ============================================================================
+    # Convert Pydantic outputs to JSON strings for process_json_responses
+    # ============================================================================
     decomposed = result.get("decomposed_requirement")
-    if decomposed:
-        print(decomposed)
-    else:
-        print("  (no output)")
-    print()
-
-    # Display summarized test suite
-    print("-" * 70)
-    print("SUMMARIZED TEST SUITE")
-    print("-" * 70)
     test_suite = result.get("test_suite")
+
+    responses = []
+    ids = []
+
+    if decomposed:
+        responses.append(decomposed.model_dump_json())
+        ids.append(f"{requirement.req_id}_decomposed")
+
     if test_suite:
-        print(test_suite)
-    else:
-        print("  (no output)")
+        responses.append(test_suite.model_dump_json())
+        ids.append(f"{requirement.req_id}_summarized")
+
+    processed = process_json_responses(
+        responses=responses,
+        ids=ids,
+        prompt_type="simple_graph",
+    )
+
+    # ============================================================================
+    # Convert to DataFrame and save
+    # ============================================================================
+    df = pd.DataFrame(processed)
+    output_path = "output/test-simple-graph.xlsx"
+    df.to_excel(output_path, index=False)
+    print(f"Results saved to: {output_path}")
+    print(f"DataFrame shape: {df.shape}")
+    print()
+    print(df.to_string())
     print()
 
     print("=" * 70)
