@@ -11,12 +11,12 @@ Usage:
 import asyncio
 import pandas as pd
 from dotenv import dotenv_values
-from src.components.tc_review_agent_medtech.pipeline import (
+from aiswre.components.tc_review_agent_medtech.pipeline import (
     get_medtech_reviewer_runnable,
     run_batch_medtech_test_case_review,
     dataframe_to_medtech_inputs
 )
-from src.components.tc_review_agent_medtech.core import TestCase, Requirement
+from aiswre.components.tc_review_agent_medtech.core import TestCase, Requirement
 
 # ============================================================================
 # Configuration

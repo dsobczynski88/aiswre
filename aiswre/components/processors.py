@@ -13,7 +13,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
-from src.components.clients import RateLimitOpenAIClient
+from aiswre.components.clients import RateLimitOpenAIClient
 
 def parse_llm_json_like(raw: str) -> Dict[str, Any]:
     """
@@ -180,7 +180,7 @@ def process_json_responses(
         # Extract content
         # -------------------------------------------------
         try:
-            if isinstance(response, ParsedChatCompletion):
+            if (isinstance(response, ParsedChatCompletion)) or (isinstance(response, ChatCompletion)):
                 content = response.choices[0].message.content
             elif isinstance(response, dict) and "response" in response:
                 content = response["response"].content
@@ -195,10 +195,17 @@ def process_json_responses(
             continue
 
         # -------------------------------------------------
+        # Not JSON
+        # -------------------------------------------------
+
+        # -------------------------------------------------
         # Parse JSON (robust)
         # -------------------------------------------------
         try:
             response_json = parse_llm_json_like(content)
+            if type(response_json) not in [str, dict]:
+                processed.append(content)
+                continue
         except Exception as e:
             processed.append({
                 **base_output,
@@ -207,6 +214,7 @@ def process_json_responses(
             })
             continue
 
+        print(f"Response json: {response_json}")
         # -------------------------------------------------
         # Collect shared + row-level structures
         # -------------------------------------------------
@@ -393,7 +401,7 @@ class OpenAIPromptProcessor:
             {"role": "user", "content": user_prompt},
         ]
         try:
-            completion = await self.client.chat_completion_parse(
+            completion = await self.client.chat_completion(
                 model=self.model,
                 messages=messages,
                 **self.model_kwargs,

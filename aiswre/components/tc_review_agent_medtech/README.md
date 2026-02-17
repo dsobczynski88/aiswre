@@ -52,7 +52,7 @@ MedtechTraceLink (11 scores + issues + summary + improvements)
 
 ```python
 import asyncio
-from src.components.tc_review_agent_medtech import (
+from aiswre.components.tc_review_agent_medtech import (
     get_medtech_reviewer_runnable,
     run_batch_medtech_test_case_review,
     TestCase,
@@ -103,7 +103,7 @@ print(f"\nRecommended Improvements:\n{result.test_case_improvements}")
 
 ```python
 import pandas as pd
-from src.components.tc_review_agent_medtech.pipeline import dataframe_to_medtech_inputs
+from aiswre.components.tc_review_agent_medtech.pipeline import dataframe_to_medtech_inputs
 
 # Load your test case data
 df = pd.read_excel("test_cases.xlsx")

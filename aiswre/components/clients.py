@@ -366,6 +366,45 @@ class RateLimitOpenAIClient:
 
         return completion
 
+    async def chat_completion_parse_beta(self, model: str, messages: list, **kwargs) -> ChatCompletion:
+        """Make a chat completion request using the Structured Outputs (beta) endpoint."""
+        
+        # 1. Ensure kwargs is a dict and strip None values to prevent unpacking errors
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+        await self.rate_limiter.wait_if_needed()
+
+        est_tokens = 0
+        if self.token_limiter:
+            est_tokens = self._estimate_total_tokens(model, messages, kwargs)
+            await self.token_limiter.wait_if_needed(est_tokens)
+
+        # 2. FIX: Point to the .beta endpoint for parsing
+        # Note: self.client.beta.chat.completions.parse is the correct path
+        completion: ChatCompletion = await async_retry_with_backoff(
+            self.client.beta.chat.completions.parse,
+            model=model,
+            messages=messages,
+            token_limiter=self.token_limiter,
+            est_tokens=est_tokens,
+            **kwargs,
+        )
+
+        # 3. Record actual token usage
+        if self.token_limiter:
+            try:
+                usage = getattr(completion, "usage", None)
+                if usage is not None:
+                    total_tokens = getattr(usage, "total_tokens", None) or (
+                        getattr(usage, "prompt_tokens", 0) + getattr(usage, "completion_tokens", 0)
+                    )
+                    if total_tokens:
+                        await self.token_limiter.record(int(total_tokens))
+            except Exception:
+                pass
+
+        return completion
+
     async def chat_completion_parse(self, model: str, messages: list, **kwargs) -> ChatCompletion:
         """Make a chat completion request with RPM/TPM limiting and token-aware retries (parse endpoint)."""
         await self.rate_limiter.wait_if_needed()

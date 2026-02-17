@@ -106,7 +106,7 @@ OLLAMA_HOST=0.0.0.0:11436 ollama serve
 
 ```python
 import asyncio
-from src.components.tc_review_agent_medtech_local import (
+from aiswre.components.tc_review_agent_medtech_local import (
     get_medtech_local_reviewer_runnable,
     TestCase,
     Requirement
@@ -164,7 +164,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from src.components.tc_review_agent_medtech_local import (
+from aiswre.components.tc_review_agent_medtech_local import (
     run_batch_medtech_local_test_case_review,
     TestCase,
     Requirement

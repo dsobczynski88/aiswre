@@ -59,7 +59,7 @@ ollama pull llama3.1
 
 ```python
 import asyncio
-from src.components.rtm_review_agent_medtech_local import (
+from aiswre.components.rtm_review_agent_medtech_local import (
     Requirement,
     RTMEntry,
     get_rtm_local_reviewer_runnable
@@ -121,7 +121,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from src.components.rtm_review_agent_medtech_local import (
+from aiswre.components.rtm_review_agent_medtech_local import (
     Requirement,
     RTMEntry,
     run_batch_rtm_local_review
@@ -301,7 +301,7 @@ reviewer = get_rtm_local_reviewer_runnable(
 
 ```python
 import pandas as pd
-from src.components.rtm_review_agent_medtech_local import Requirement, RTMEntry
+from aiswre.components.rtm_review_agent_medtech_local import Requirement, RTMEntry
 
 # Read RTM from Excel
 df = pd.read_excel("rtm.xlsx")

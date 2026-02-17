@@ -28,7 +28,7 @@ Note:
 import asyncio
 import argparse
 import pandas as pd
-from src.components.tc_review_agent_medtech_local import (
+from aiswre.components.tc_review_agent_medtech_local import (
     get_medtech_local_reviewer_runnable,
     run_batch_medtech_local_test_case_review,
     detect_ollama_ports,

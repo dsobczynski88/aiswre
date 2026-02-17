@@ -110,9 +110,10 @@ Issues = "https://github.com/dsobczynski88/aiswre/issues"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["*"]
-exclude = ["src/data*", "*.tests", "*.tests.*", "tests.*", "tests"]
+where = ["."]
+include = ["aiswre*"]
+# This prevents setuptools from treating 'data' as a sub-package
+exclude = ["aiswre.data*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.yaml", "*.yml", "*.json", "*.pdf"]

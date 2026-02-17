@@ -4,11 +4,11 @@
 import asyncio
 import pandas as pd
 from dotenv import dotenv_values
-from src import utils
-from src.components import prompteval as pe
-from src.components.clients import RateLimitOpenAIClient
-from src.components.processors import OpenAIPromptProcessor, df_to_prompt_items, process_json_responses  # adjust import
-from src.utils import load_prompt  # adjust import
+from aiswre import utils
+from aiswre.components import prompteval as pe
+from aiswre.components.clients import RateLimitOpenAIClient
+from aiswre.components.processors import OpenAIPromptProcessor, df_to_prompt_items, process_json_responses  # adjust import
+from aiswre.utils import load_prompt  # adjust import
 
 # ===============================================================
 # Configuration

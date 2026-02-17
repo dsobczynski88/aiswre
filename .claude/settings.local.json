@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for f in notebooks/*.ipynb)",
+      "Bash(do sed -i 's/\"\"import src\\\\\\\\n\"\"/\"\"import aiswre\\\\\\\\n\"\"/g; s/\"\"import src\"\"/\"\"import aiswre\"\"/g; s/\"\"#import src\\\\\\\\n\"\"/\"\"#import aiswre\\\\\\\\n\"\"/g' \"$f\")",
+      "Bash(done)"
+    ]
+  }
+}
