@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**aiswre** (AI System for Writing Requirements Engineering) is a Python tool using AI/NLP to improve software requirement and test case quality. It has four main pipelines:
+**aiswre** (AI System for Writing Requirements Engineering) is a Python tool using AI/NLP to improve software requirement and test case quality. It has five pipelines:
 
 1. **INCOSE Requirements Review** - Evaluates requirements against INCOSE Guide to Writing Requirements using 40+ NLP evaluation functions. Has both OpenAI and local Ollama variants.
 2. **MedTech Test Case Review** - 11 parallel LangGraph evaluators aligned to FDA/IEC 62304. Has OpenAI (`tc_review_agent_medtech`) and local Ollama (`tc_review_agent_medtech_local`) variants.
 3. **Ollama Generic Test Case Review** (`tc_review_agent_ollama`) - Lightweight 2-evaluator local LLM reviewer for general QA.
-4. **RTM Review** (`rtm_review_agent_medtech_local`) - 9 evaluators assessing how well test suites verify requirements (verification coverage, not individual test quality).
+4. **RTM Review - Local** (`rtm_review_agent_medtech_local`) - 9 evaluators assessing how well test suites verify requirements (verification coverage, not individual test quality). Uses Ollama.
+5. **RTM Review - OpenAI** (`rtm_review_agent_medtech`) - **In active development.** 4 coverage evaluators with a more sophisticated decomposer→summarizer→assembler→evaluators→aggregator graph pattern. Uses OpenAI.
 
 ## Common Commands
 
@@ -28,6 +29,7 @@ python scripts/readme_req_reviewer_local_example.py --multi-port  # Ollama multi
 python scripts/readme_medtech_reviewer_example.py           # MedTech TC review (OpenAI)
 python scripts/readme_medtech_local_reviewer_example.py     # MedTech TC review (Ollama)
 python scripts/readme_rtm_reviewer_example.py               # RTM review (Ollama)
+python scripts/test-rtm-medtech-simple.py                   # RTM review (OpenAI, dev/test)
 
 # Formatting and linting
 black aiswre/ scripts/         # Line length: 100
@@ -61,7 +63,7 @@ aiswre/
     tc_review_agent_medtech/         # MedTech TC review (OpenAI, 11 evaluators)
     tc_review_agent_medtech_local/   # MedTech TC review (Ollama, 11 evaluators)
     tc_review_agent_ollama/          # Generic TC review (Ollama, 2 evaluators)
-    rtm_review_agent_medtech/        # RTM review (OpenAI)
+    rtm_review_agent_medtech/        # RTM review (OpenAI, 4 evaluators) — IN DEVELOPMENT
     rtm_review_agent_medtech_local/  # RTM review (Ollama, 9 evaluators)
   data/                       # Demo datasets, INCOSE PDF
   prompts/                    # System/user prompt templates (A-H variants + prewarm)
@@ -69,25 +71,41 @@ aiswre/
 
 ### LangGraph Agent Pattern
 
-All review agents (`tc_review_agent_*`, `rtm_review_agent_*`) follow the same structure across their subdirectories:
+All **completed** review agents (`tc_review_agent_*`, `rtm_review_agent_medtech_local`) follow the same structure:
 
 - `core.py` - Pydantic response models and data structures (e.g., `MedtechTraceLink`, `RTMReviewLink`)
 - `evaluators.py` - Factory functions that create LangGraph evaluation nodes (e.g., `make_unambiguity_evaluator()`)
 - `nodes.py` - Node mapping, aggregator logic, and graph state definitions
 - `pipeline.py` - `get_*_reviewer_runnable()` factory that wires the LangGraph state machine
 
-The graph pattern is: parallel evaluator nodes -> aggregator node -> output. Each evaluator uses Pydantic `.with_structured_output()` for reliable JSON from LLMs.
+The standard graph pattern is: **parallel evaluator nodes → aggregator node → output**. Each evaluator uses Pydantic `.with_structured_output()` for reliable JSON from LLMs.
+
+### RTM OpenAI Agent (In Development)
+
+`rtm_review_agent_medtech` uses a more sophisticated multi-stage graph pattern:
+
+```
+START → [decomposer, summarizer] (parallel) → assembler → [4 coverage evaluators] (parallel) → aggregator → END
+```
+
+- **Decomposer**: Breaks a requirement into atomic testable specifications with edge-case analysis
+- **Summarizer**: Distills test cases to objective/protocol/acceptance criteria
+- **Assembler**: Pure data node (no LLM) that collects decomposer + summarizer outputs
+- **Evaluators**: Functional, I/O, boundary, and negative test coverage
+- **Aggregator**: Synthesizes evaluator assessments into actionable recommendations
+
+This agent does NOT have a separate `evaluators.py`; all node factory functions live in `nodes.py`. Entry point is `RTMReviewerRunnable` class in `pipeline.py`.
 
 ### Two Processing Paths
 
-1. **INCOSE pipeline** (non-graph): `RateLimitOpenAIClient` or `ChatOllama` -> `OpenAIPromptProcessor`/`OllamaPromptProcessor` -> `prompteval.py` NLP evaluation functions -> Excel output
-2. **LangGraph agents**: `get_*_reviewer_runnable()` factory -> `GraphProcessor.run_graph_batch()` -> Excel output
+1. **INCOSE pipeline** (non-graph): `RateLimitOpenAIClient` or `ChatOllama` → `OpenAIPromptProcessor`/`OllamaPromptProcessor` → `prompteval.py` NLP evaluation functions → Excel output
+2. **LangGraph agents**: `get_*_reviewer_runnable()` factory → `GraphProcessor.run_graph_batch()` → Excel output. The OpenAI RTM agent uses `RTMReviewerRunnable` class directly instead of a `get_*` factory function.
 
 ### Key Processors in `processors.py`
 
 - `OpenAIPromptProcessor` / `OllamaPromptProcessor` - Async batch processing for INCOSE pipeline
 - `GraphProcessor` - Runs any LangGraph agent asynchronously via `run_graph_batch()`
-- `parse_llm_json_like()` - 4-step fallback JSON parser (json.loads -> ast.literal_eval -> pattern repair)
+- `parse_llm_json_like()` - 4-step fallback JSON parser (json.loads → ast.literal_eval → pattern repair)
 - `df_to_prompt_items()` / `load_input_data()` - Data loading utilities
 
 ### Multi-Port Ollama Parallelization
@@ -110,12 +128,12 @@ set OLLAMA_HOST=0.0.0.0:11435 && ollama serve   # Terminal 2
 ### Adding a new evaluator to any LangGraph agent
 
 1. Add Pydantic response model in `core.py`
-2. Add `make_<name>_evaluator()` factory in `evaluators.py`
+2. Add `make_<name>_evaluator()` factory in `evaluators.py` (or `nodes.py` for `rtm_review_agent_medtech`)
 3. Add `<name>_score` field to the output model (e.g., `MedtechTraceLink`)
 4. Register the node in `nodes.py` and `pipeline.py`
 5. Update aggregator weights
 
-Each agent subdirectory has a `README.md` with detailed instructions.
+Each agent subdirectory has a `README.md` with detailed instructions (except `rtm_review_agent_medtech` which is still in development).
 
 ### Adding INCOSE evaluation functions
 
