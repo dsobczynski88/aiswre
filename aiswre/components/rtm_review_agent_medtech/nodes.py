@@ -107,11 +107,11 @@ class BaseEvaluatorNode:
         test_suite: TestSuite
         ) -> dict:
         
-        payload ={
-            "original_requirement": requirement,
-            "decomposed_requirement": decomposed_requirement,
-            "test_suite": test_suite
-        }          
+        payload = {
+            "original_requirement": requirement.model_dump(),
+            "decomposed_requirement": decomposed_requirement.model_dump(),
+            "test_suite": test_suite.model_dump(),
+        }
         return payload
     
     async def __call__(self, state: Dict) -> Dict:
@@ -131,9 +131,8 @@ class BaseEvaluatorNode:
         except Exception as e:
             print(e)
             
-        # Return only the new trace link (not accumulated list)
-        # LangGraph will use operator.add to merge with other parallel node outputs
-        return {"coverage_responses": self.response_model}
+        # Return parsed instance in a list — LangGraph uses operator.add to merge
+        return {"coverage_responses": [parsed]}
         
 
 def make_decomposer_node(llm) -> DecomposerNode:
@@ -324,6 +323,11 @@ def make_boundary_coverage_evaluator(llm) -> BaseEvaluatorNode:
     ]
     }
     """
+    return BaseEvaluatorNode(
+        llm=llm,
+        response_model=CoverageEvaluator,
+        system_prompt=system_prompt,
+    )
 
 def make_functional_coverage_evaluator(llm) -> BaseEvaluatorNode:
     system_prompt = """
