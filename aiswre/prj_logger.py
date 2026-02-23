@@ -1,7 +1,7 @@
 import sys
 import time
 import logging
-from src.prj_exception import CustomException
+from aiswre.prj_exception import CustomException
 
 def timing(loggername):
     def decorator(func):

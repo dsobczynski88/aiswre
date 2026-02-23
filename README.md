@@ -42,10 +42,10 @@ import asyncio
 import pandas as pd
 from dotenv import dotenv_values
 from src import utils
-from src.components import prompteval as pe
-from src.components.promptrunner import RateLimitOpenAIClient
-from src.components.promptprocessor import PromptProcessor  
-from src.utils import load_prompt
+from aiswre.components import prompteval as pe
+from aiswre.components.promptrunner import RateLimitOpenAIClient
+from aiswre.components.promptprocessor import PromptProcessor  
+from aiswre.utils import load_prompt
 
 # ===============================================================
 # Configuration

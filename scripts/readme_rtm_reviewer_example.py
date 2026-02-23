@@ -7,7 +7,7 @@ requirement verification coverage in a traceability matrix.
 
 import asyncio
 import logging
-from src.components.rtm_review_agent_medtech_local import (
+from aiswre.components.rtm_review_agent_medtech_local import (
     Requirement,
     RTMEntry,
     run_batch_rtm_local_review

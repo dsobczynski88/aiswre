@@ -11,7 +11,7 @@ import pandas as pd
 from typing import List, Optional, Dict, Any
 from langgraph.graph import StateGraph
 from langchain_openai import ChatOpenAI
-from src.components.processors import df_to_prompt_items
+from aiswre.components.processors import df_to_prompt_items
 from .core import Requirement, TestCase, MedtechTraceLink, TestCaseState
 from .evaluators import (
     make_unambiguity_evaluator,

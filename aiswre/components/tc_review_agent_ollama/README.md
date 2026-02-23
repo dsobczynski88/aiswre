@@ -77,7 +77,7 @@ This enables **true parallel execution** with local models, dramatically improvi
 
 ```python
 import asyncio
-from src.components.tc_review_agent_ollama import (
+from aiswre.components.tc_review_agent_ollama import (
     TestCaseInput,
     run_batch_with_graphprocessor
 )
@@ -124,7 +124,7 @@ OLLAMA_HOST=0.0.0.0:11436 ollama serve
 
 ```python
 import asyncio
-from src.components.tc_review_agent_ollama import (
+from aiswre.components.tc_review_agent_ollama import (
     TestCaseInput,
     run_batch_ollama_test_case_review
 )
@@ -155,8 +155,8 @@ results = await run_batch_ollama_test_case_review(
 ### Using GraphProcessor (Recommended for Single Port)
 
 ```python
-from src.components.processors import GraphProcessor
-from src.components.tc_review_agent_ollama import get_ollama_reviewer_runnable
+from aiswre.components.processors import GraphProcessor
+from aiswre.components.tc_review_agent_ollama import get_ollama_reviewer_runnable
 
 # Create reviewer graph
 graph = get_ollama_reviewer_runnable(
@@ -195,7 +195,7 @@ results = await processor.run_graph_batch(
 ### Direct Graph Invocation
 
 ```python
-from src.components.tc_review_agent_ollama import get_ollama_reviewer_runnable
+from aiswre.components.tc_review_agent_ollama import get_ollama_reviewer_runnable
 
 reviewer = get_ollama_reviewer_runnable(model="llama3.1")
 
@@ -291,7 +291,7 @@ reviewer = get_ollama_reviewer_runnable(
 ### Integration with GraphProcessor
 
 ```python
-from src.components.processors import GraphProcessor
+from aiswre.components.processors import GraphProcessor
 
 # Create graph
 graph = get_ollama_reviewer_runnable(model="llama3.1")
