@@ -1,5 +1,5 @@
 """
-Test script for the simple RTM MedTech graph (decomposer + summarizer only).
+Test script for the simple RTM MedTech graph (decomposer + summarizer + boundary evaluator).
 
 Usage:
     python scripts/test-rtm-medtech-simple.py
@@ -69,7 +69,7 @@ async def main():
     """Run the simple decomposer + summarizer graph."""
 
     print("=" * 70)
-    print("RTM MedTech Simple Graph Test (Decomposer + Summarizer)")
+    print("RTM MedTech Simple Graph Test (Decomposer + Summarizer + Boundary)")
     print("=" * 70)
     print()
 
@@ -88,7 +88,7 @@ async def main():
     print(f"Requirement: {requirement.req_id} - {requirement.text}")
     print(f"Test Cases: {len(test_cases)}")
     print()
-    print("Running simple graph (decomposer + summarizer)...")
+    print("Running simple graph (decomposer + summarizer + boundary)...")
     print()
 
     # Invoke the graph
@@ -99,6 +99,7 @@ async def main():
     # ============================================================================
     decomposed = result.get("decomposed_requirement")
     test_suite = result.get("test_suite")
+    coverage_responses = result.get("coverage_responses", [])
 
     responses = []
     ids = []
@@ -110,6 +111,10 @@ async def main():
     if test_suite:
         responses.append(test_suite.model_dump_json())
         ids.append(f"{requirement.req_id}_summarized")
+
+    for i, coverage in enumerate(coverage_responses):
+        responses.append(coverage.model_dump_json())
+        ids.append(f"{requirement.req_id}_boundary_{i}")
 
     processed = process_json_responses(
         responses=responses,
@@ -128,6 +133,23 @@ async def main():
     print()
     print(df.to_string())
     print()
+
+    # ============================================================================
+    # Print boundary evaluation summary
+    # ============================================================================
+    if coverage_responses:
+        print("-" * 70)
+        print("Boundary Coverage Summary")
+        print("-" * 70)
+        for coverage in coverage_responses:
+            print(f"\nRationale: {coverage.rationale}")
+            print(f"Covered boundaries: {len(coverage.covered)}")
+            for cb in coverage.covered:
+                print(f"  - {cb.spec_id}: {cb.edge_case_summary} -> {cb.mapped_test_case_id}")
+            print(f"Missing boundaries: {len(coverage.missing)}")
+            for mb in coverage.missing:
+                print(f"  - [{mb.escaped_defect_risk}] {mb.gap_description}")
+        print()
 
     print("=" * 70)
     print("Simple graph test complete.")

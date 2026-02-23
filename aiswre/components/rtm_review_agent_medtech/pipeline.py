@@ -159,14 +159,18 @@ class RTMReviewerRunnable:
 
         decomposer = make_decomposer_node(client)
         summarizer = make_summarizer_node(client)
+        boundary = make_boundary_coverage_evaluator(client)
 
         sg.add_node("decomposer", decomposer)
         sg.add_node("summarizer", summarizer)
+        sg.add_node("boundary", boundary)
 
         sg.add_edge(START, "decomposer")
         sg.add_edge(START, "summarizer")
 
-        sg.add_edge("decomposer", END)
-        sg.add_edge("summarizer", END)
+        sg.add_edge("decomposer", "boundary")
+        sg.add_edge("summarizer", "boundary")
+
+        sg.add_edge("boundary", END)
 
         return sg.compile()
