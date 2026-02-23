@@ -11,7 +11,6 @@ from dotenv import dotenv_values
 from langchain_openai import ChatOpenAI
 from aiswre.components.rtm_review_agent_medtech.pipeline import RTMReviewerRunnable
 from aiswre.components.rtm_review_agent_medtech.core import Requirement, TestCase
-from aiswre.components.processors import process_json_responses
 
 # ============================================================================
 # Configuration
@@ -95,60 +94,135 @@ async def main():
     result = await simple_graph.ainvoke(input_state)
 
     # ============================================================================
-    # Convert Pydantic outputs to JSON strings for process_json_responses
+    # Build 6-tab Excel workbook
     # ============================================================================
     decomposed = result.get("decomposed_requirement")
     test_suite = result.get("test_suite")
     coverage_responses = result.get("coverage_responses", [])
 
-    responses = []
-    ids = []
+    # Tab 1: inputs
+    inputs_rows = [
+        {
+            "requirement_id": requirement.req_id,
+            "requirement_text": requirement.text,
+            "test_id": tc.test_id,
+            "description": tc.description,
+            "setup": tc.setup,
+            "steps": tc.steps,
+            "expectedResults": tc.expectedResults,
+        }
+        for tc in test_cases
+    ]
+    df_inputs = pd.DataFrame(inputs_rows)
 
+    # Tab 2: decomposer (specs without rationale)
+    decomposer_rows = []
     if decomposed:
-        responses.append(decomposed.model_dump_json())
-        ids.append(f"{requirement.req_id}_decomposed")
+        for spec in decomposed.decomposed_specifications:
+            eca = spec.edge_case_analysis
+            decomposer_rows.append(
+                {
+                    "spec_id": spec.spec_id,
+                    "type": spec.type,
+                    "description": spec.description,
+                    "verification_method": spec.verification_method,
+                    "acceptance_criteria": spec.acceptance_criteria,
+                    "potential_edge_cases": "; ".join(eca.potential_edge_cases),
+                    "risk_of_escaped_defect": eca.risk_of_escaped_defect,
+                    "recommended_mitigation": eca.recommended_mitigation,
+                }
+            )
+    df_decomposer = pd.DataFrame(decomposer_rows)
 
+    # Tab 3: summarizer
+    summarizer_rows = []
     if test_suite:
-        responses.append(test_suite.model_dump_json())
-        ids.append(f"{requirement.req_id}_summarized")
+        for s in test_suite.summary:
+            summarizer_rows.append(
+                {
+                    "test_case_id": s.test_case_id,
+                    "objective": s.objective,
+                    "verifies": s.verifies,
+                    "protocol": "; ".join(s.protocol),
+                    "acceptance_criteria": "; ".join(s.acceptance_criteria),
+                }
+            )
+    df_summarizer = pd.DataFrame(summarizer_rows)
 
-    for i, coverage in enumerate(coverage_responses):
-        responses.append(coverage.model_dump_json())
-        ids.append(f"{requirement.req_id}_boundary_{i}")
+    # Tab 4: covered
+    covered_rows = []
+    for coverage in coverage_responses:
+        for cb in coverage.covered:
+            covered_rows.append(
+                {
+                    "spec_id": cb.spec_id,
+                    "edge_case_summary": cb.edge_case_summary,
+                    "mapped_test_case_id": cb.mapped_test_case_id,
+                    "coverage_rationale": cb.coverage_rationale,
+                }
+            )
+    df_covered = pd.DataFrame(covered_rows)
 
-    processed = process_json_responses(
-        responses=responses,
-        ids=ids,
-        prompt_type="simple_graph",
-    )
+    # Tab 5: missing
+    missing_rows = []
+    for coverage in coverage_responses:
+        for mb in coverage.missing:
+            stc = mb.summarized_test_case
+            missing_rows.append(
+                {
+                    "spec_id": "",
+                    "test_case_id": stc.test_case_id,
+                    "objective": stc.objective,
+                    "verifies": stc.verifies,
+                    "protocol": "; ".join(stc.protocol),
+                    "acceptance_criteria": "; ".join(stc.acceptance_criteria),
+                    "gap_description": mb.gap_description,
+                    "escaped_defect_risk": mb.escaped_defect_risk,
+                    "rationale": mb.rationale,
+                }
+            )
+    df_missing = pd.DataFrame(missing_rows)
 
-    # ============================================================================
-    # Convert to DataFrame and save
-    # ============================================================================
-    df = pd.DataFrame(processed)
+    # Tab 6: rationale (decomposer rationale per spec)
+    rationale_rows = []
+    if decomposed:
+        for spec in decomposed.decomposed_specifications:
+            rationale_rows.append(
+                {
+                    "spec_id": spec.spec_id,
+                    "rationale": spec.rationale,
+                }
+            )
+    df_rationale = pd.DataFrame(rationale_rows)
+
+    # Write all tabs
     output_path = "output/test-simple-graph.xlsx"
-    df.to_excel(output_path, index=False)
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        df_inputs.to_excel(writer, sheet_name="inputs", index=False)
+        df_decomposer.to_excel(writer, sheet_name="decomposer", index=False)
+        df_summarizer.to_excel(writer, sheet_name="summarizer", index=False)
+        df_covered.to_excel(writer, sheet_name="covered", index=False)
+        df_missing.to_excel(writer, sheet_name="missing", index=False)
+        df_rationale.to_excel(writer, sheet_name="rationale", index=False)
+
     print(f"Results saved to: {output_path}")
-    print(f"DataFrame shape: {df.shape}")
-    print()
-    print(df.to_string())
+    print(
+        f"  inputs: {len(df_inputs)} rows | decomposer: {len(df_decomposer)} rows | "
+        f"summarizer: {len(df_summarizer)} rows"
+    )
+    print(
+        f"  covered: {len(df_covered)} rows | missing: {len(df_missing)} rows | "
+        f"rationale: {len(df_rationale)} rows"
+    )
     print()
 
-    # ============================================================================
-    # Print boundary evaluation summary
-    # ============================================================================
+    # Quick console summary
     if coverage_responses:
         print("-" * 70)
         print("Boundary Coverage Summary")
         print("-" * 70)
         for coverage in coverage_responses:
-            print(f"\nRationale: {coverage.rationale}")
-            print(f"Covered boundaries: {len(coverage.covered)}")
-            for cb in coverage.covered:
-                print(f"  - {cb.spec_id}: {cb.edge_case_summary} -> {cb.mapped_test_case_id}")
-            print(f"Missing boundaries: {len(coverage.missing)}")
-            for mb in coverage.missing:
-                print(f"  - [{mb.escaped_defect_risk}] {mb.gap_description}")
+            print(f"  Covered: {len(coverage.covered)}  |  Missing: {len(coverage.missing)}")
         print()
 
     print("=" * 70)
