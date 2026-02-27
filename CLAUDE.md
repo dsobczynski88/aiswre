@@ -88,11 +88,19 @@ The standard graph pattern is: **parallel evaluator nodes → aggregator node �
 START → [decomposer, summarizer] (parallel) → assembler → [4 coverage evaluators] (parallel) → aggregator → END
 ```
 
-- **Decomposer**: Breaks a requirement into atomic testable specifications with edge-case analysis
-- **Summarizer**: Distills test cases to objective/protocol/acceptance criteria
+- **Decomposer**: Breaks a requirement into atomic edge-case specs (`DecomposedRequirement.edge_specifications`)
+- **Summarizer**: Distills test cases to objective/protocol/acceptance criteria (`TestSuite.summary`)
 - **Assembler**: Pure data node (no LLM) that collects decomposer + summarizer outputs
-- **Evaluators**: Functional, I/O, boundary, and negative test coverage
+- **Evaluators**: Functional, I/O, boundary, and negative test coverage (each appends to `coverage_responses` via `operator.add`)
 - **Aggregator**: Synthesizes evaluator assessments into actionable recommendations
+
+**Current implementation status**: Only the decomposer, summarizer, and boundary evaluator are fully implemented. `make_assembler_node`, `make_aggregator_node`, `make_input_output_coverage_evaluator`, and `make_negative_test_coverage_evaluator` are stubs (return `pass`). Use `RTMReviewerRunnable.build_simple_graph(client)` (decomposer + summarizer + boundary only) for current dev/test work.
+
+**Class-based nodes**: Unlike other agents, this agent uses class-based callables (`DecomposerNode`, `SummaryNode`, `BaseEvaluatorNode`) rather than plain functions, each with `__init__(llm, response_model, system_prompt)` and `__call__(state)`.
+
+**Inline system prompts**: System prompts are embedded directly in the factory functions in `nodes.py`, not loaded from the `prompts/` directory.
+
+**Missing type**: `CoverageEvaluator` is imported in `nodes.py` but does not yet exist in `core.py`; it needs to be defined as the structured output model for evaluator nodes (currently `EvaluatedEdgeSpec` is the per-spec model in `core.py`).
 
 This agent does NOT have a separate `evaluators.py`; all node factory functions live in `nodes.py`. Entry point is `RTMReviewerRunnable` class in `pipeline.py`.
 
@@ -122,6 +130,7 @@ set OLLAMA_HOST=0.0.0.0:11435 && ollama serve   # Terminal 2
 - **Primary**: Code-based configuration via factory function parameters (see `scripts/` for examples)
 - **Legacy**: `config.yaml` at root for older INCOSE pipeline examples (model, prompts, eval funcs, weights)
 - **Environment**: `.env` file with `OPENAI_API_KEY` (required for OpenAI variants)
+- **Output**: Test/example scripts write results to `output/` directory (must exist; not tracked by git except for its contents)
 
 ## Extending Agents
 

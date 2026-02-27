@@ -22,18 +22,16 @@ class EdgeCaseAnalysis(BaseModel):
     risk_of_escaped_defect: str
     recommended_mitigation: str
 
-class DecomposedSpec(BaseModel):
+class DecomposedEdgeSpec(BaseModel):
     spec_id: str
     type: str
     description: str
-    verification_method: str
     acceptance_criteria: str
     rationale: str
-    edge_case_analysis: EdgeCaseAnalysis
 
 class DecomposedRequirement(BaseModel):
     requirement: Requirement
-    decomposed_specifications: List[DecomposedSpec]
+    edge_specifications: List[DecomposedEdgeSpec]
 
 class TestCase(BaseModel):
     test_id: str
@@ -57,23 +55,28 @@ class TestSuite(BaseModel):
     test_cases: List[TestCase]
     summary: List[SummarizedTestCase]
 
-class MissingBoundary(BaseModel):
-    summarized_test_case: SummarizedTestCase
-    gap_description: str
-    escaped_defect_risk: Literal["High", "Medium", "Low"]
-    rationale: str
+#class MissingBoundary(BaseModel):
+#    summarized_test_case: SummarizedTestCase
+#    gap_description: str
+#    escaped_defect_risk: Literal["High", "Medium", "Low"]
+#    rationale: str
     
-class CoveredBoundary(BaseModel):
-    spec_id: str
-    edge_case_summary: str
-    mapped_test_case_id: str
-    coverage_rationale: str
+#class CoveredBoundary(BaseModel):
+#    spec_id: str
+#    edge_case_summary: str
+#    mapped_test_case_id: str
+#    coverage_rationale: str
+
+class EvaluatedEdgeSpec(BaseModel):
+    """Per-spec coverage verdict from an evaluator node."""
+    spec_id: str = Field(..., description="The spec_id from the DecomposedEdgeSpec")
+    covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite otherwise False")
+    covered_by_test_cases: List[str] = Field(..., description="A list of test case IDs from TestSuite['summary'] that effectively cover the test. In the event no test cases are covered, this should return as an empty list.")
+    rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described EdgeCaseSpec")
 
 class CoverageEvaluator(BaseModel):
-    """Response for functional coverage evaluation."""
-    covered: List[CoveredBoundary]
-    missing: List[MissingBoundary]
-    rationale: str = Field(..., description="Thought process behind the determination of what was covered and what was missing")
+    """Container returned by each evaluator node — one EvaluatedEdgeSpec per decomposed spec."""
+    evaluations: List[EvaluatedEdgeSpec]
 
 class ReviewComment(BaseModel):
     comment: str
@@ -86,5 +89,5 @@ class RTMReviewState(TypedDict, total=False):
     test_cases: List[TestCase]
     decomposed_requirement: DecomposedRequirement
     test_suite: TestSuite
-    coverage_responses: Annotated[List['CoverageEvaluator'], operator.add]
-    aggregated_review: Annotated[List['ReviewComment'], operator.add]
+    coverage_responses: Annotated[List[CoverageEvaluator], operator.add]
+    #aggregated_review: Annotated[List['ReviewComment'], operator.add]
