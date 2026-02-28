@@ -11,6 +11,7 @@ from dotenv import dotenv_values
 from langchain_openai import ChatOpenAI
 from aiswre.components.rtm_review_agent_medtech.pipeline import RTMReviewerRunnable
 from aiswre.components.rtm_review_agent_medtech.core import Requirement, TestCase
+from aiswre.utils import save_graph_png
 
 # ============================================================================
 # Configuration
@@ -18,7 +19,7 @@ from aiswre.components.rtm_review_agent_medtech.core import Requirement, TestCas
 
 DOT_ENV = dotenv_values(".env")
 OPENAI_API_KEY = DOT_ENV["OPENAI_API_KEY"]
-MODEL = "gpt-4o"
+MODEL = "gpt-4o-mini"
 
 
 # ============================================================================
@@ -63,6 +64,7 @@ async def main():
     # Build the simple graph
     client = ChatOpenAI(model=MODEL, api_key=OPENAI_API_KEY, temperature=0.0)
     simple_graph = RTMReviewerRunnable.build_simple_graph(client)
+    save_graph_png(simple_graph, "output/simple_graph.png")
 
     # Prepare input state
     input_state = {

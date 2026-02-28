@@ -823,3 +823,22 @@ def drop_columns_by_regex(
         df.drop(columns=to_drop, inplace=True)
         return None
     return df.drop(columns=to_drop)
+
+
+def save_graph_png(graph, output_path: Union[str, Path]) -> None:
+    """
+    Render a compiled LangGraph runnable as a Mermaid PNG and save it to disk.
+
+    Uses LangGraph's built-in draw_mermaid_png() which calls the Mermaid.ink
+    public API — requires an internet connection.
+
+    Args:
+        graph: A compiled LangGraph runnable (result of StateGraph.compile()).
+        output_path: Destination path for the PNG file. Parent directories are
+                     created automatically.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    png_bytes = graph.get_graph().draw_mermaid_png()
+    output_path.write_bytes(png_bytes)
+    print(f"Graph diagram saved to: {output_path}")
