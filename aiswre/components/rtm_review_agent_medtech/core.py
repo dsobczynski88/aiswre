@@ -10,6 +10,12 @@ import operator
 from typing import Optional, List, TypedDict, Annotated, Literal
 
 
+class EdgeCaseAnalysis(BaseModel):
+    potential_edge_cases: List[str]
+    risk_of_escaped_defect: str
+    recommended_mitigation: str
+
+
 class Requirement(BaseModel):
     """Software requirement model."""
     req_id: Optional[str] = None
@@ -17,12 +23,7 @@ class Requirement(BaseModel):
     #risk_id: Optional[str] = None  # For risk-based testing
     #safety_class: Optional[str] = None  # A, B, or C per IEC 62304
 
-class EdgeCaseAnalysis(BaseModel):
-    potential_edge_cases: List[str]
-    risk_of_escaped_defect: str
-    recommended_mitigation: str
-
-class DecomposedEdgeSpec(BaseModel):
+class DecomposedSpec(BaseModel):
     spec_id: str
     type: str
     description: str
@@ -31,7 +32,7 @@ class DecomposedEdgeSpec(BaseModel):
 
 class DecomposedRequirement(BaseModel):
     requirement: Requirement
-    edge_specifications: List[DecomposedEdgeSpec]
+    decomposed_specifications: List[DecomposedSpec]
 
 class TestCase(BaseModel):
     test_id: str
@@ -67,16 +68,16 @@ class TestSuite(BaseModel):
 #    mapped_test_case_id: str
 #    coverage_rationale: str
 
-class EvaluatedEdgeSpec(BaseModel):
+class EvaluatedSpec(BaseModel):
     """Per-spec coverage verdict from an evaluator node."""
-    spec_id: str = Field(..., description="The spec_id from the DecomposedEdgeSpec")
+    spec_id: str = Field(..., description="The spec_id from the DecomposedSpec")
     covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite otherwise False")
     covered_by_test_cases: List[str] = Field(..., description="A list of test case IDs from TestSuite['summary'] that effectively cover the test. In the event no test cases are covered, this should return as an empty list.")
-    rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described EdgeCaseSpec")
+    rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described DecomposedSpec")
 
 class CoverageEvaluator(BaseModel):
     """Container returned by each evaluator node — one EvaluatedEdgeSpec per decomposed spec."""
-    evaluations: List[EvaluatedEdgeSpec]
+    evaluations: List[EvaluatedSpec]
 
 class ReviewComment(BaseModel):
     comment: str
@@ -84,10 +85,18 @@ class ReviewComment(BaseModel):
     question: str
     topic: str
 
+class AITestSuite(BaseModel):
+    spec_id: str = Field(..., description="The spec_id from the DecomposedSpec")
+    current_test_suite: List[SummarizedTestCase]
+    generated_tests: List[SummarizedTestCase]
+    ai_test_suite: List[SummarizedTestCase] = Field(..., description="The final test suite consisting of the original TestSuite and the newly generated tests")
+    rationale: str = Field(..., description="The reasoning as to why this test was generated given the input requirement and current test suite")
+
 class RTMReviewState(TypedDict, total=False):
     requirement: Requirement
     test_cases: List[TestCase]
     decomposed_requirement: DecomposedRequirement
     test_suite: TestSuite
+    ai_test_suite: AITestSuite
     coverage_responses: Annotated[List[CoverageEvaluator], operator.add]
     #aggregated_review: Annotated[List['ReviewComment'], operator.add]

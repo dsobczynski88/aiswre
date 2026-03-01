@@ -11,7 +11,8 @@ from .core import (
     TestCase,
     TestSuite,
     CoverageEvaluator,
-    ReviewComment
+    ReviewComment,
+    AITestSuite
 )
 
 class DecomposerNode:
@@ -48,6 +49,46 @@ class DecomposerNode:
             parsed = None
 
         return {"decomposed_requirement": parsed}
+
+
+class TestGeneratorNode:
+
+    def __init__(self, llm, response_model, system_prompt):
+        self.llm=llm
+        self.response_model=response_model
+        self.structured_llm = llm.with_structured_output(response_model)
+        self.system_prompt=system_prompt
+
+    @staticmethod
+    def _build_payload(
+        decomposed_requirement: DecomposedRequirement, 
+        test_suite: TestSuite
+        ) -> dict:
+        
+        payload = {
+            "decomposed_requirement": decomposed_requirement.model_dump(),
+            "test_suite": test_suite.model_dump(),
+        }
+        return payload
+    
+    async def __call__(self, state: Dict) -> Dict:
+        decomposed_requirement = state.get("decomposed_requirement")
+        test_suite = state.get("test_suite")
+        # Build payload for LLM
+        payload = self._build_payload(decomposed_requirement, test_suite)
+
+        try:
+            messages = [
+                SystemMessage(content=self.system_prompt),
+                HumanMessage(content=json.dumps(payload))
+            ]
+            # Use structured output to get Pydantic model directly
+            parsed = await self.structured_llm.ainvoke(messages)
+        except Exception as e:
+            print(e)
+            
+        return {"ai_test_suite": parsed}
+
 
 class SummaryNode:
 
@@ -102,24 +143,24 @@ class BaseEvaluatorNode:
     
     @staticmethod
     def _build_payload(
-        requirement: Requirement, 
-        decomposed_requirement: DecomposedRequirement, 
-        test_suite: TestSuite
+        requirement: Requirement,
+        decomposed_requirement: DecomposedRequirement,
+        ai_test_suite: AITestSuite
         ) -> dict:
-        
+
         payload = {
             "original_requirement": requirement.model_dump(),
             "decomposed_requirement": decomposed_requirement.model_dump(),
-            "test_suite": test_suite.model_dump(),
+            "ai_test_suite": ai_test_suite.model_dump(),
         }
         return payload
-    
+
     async def __call__(self, state: Dict) -> Dict:
         original_requirement = state.get("requirement")
         decomposed_requirement = state.get("decomposed_requirement")
-        test_suite = state.get("test_suite")
+        ai_test_suite = state.get("ai_test_suite")
         # Build payload for LLM
-        payload = self._build_payload(original_requirement, decomposed_requirement, test_suite)
+        payload = self._build_payload(original_requirement, decomposed_requirement, ai_test_suite)
 
         try:
             messages = [
@@ -138,38 +179,38 @@ class BaseEvaluatorNode:
 def make_decomposer_node(llm) -> DecomposerNode:
     system_prompt = """
     ### Role
-    Act as a Principal Medical Software Safety Analyst and Lead Systems Engineer. You are a world-leading expert in "Adversarial Requirement Engineering" for safety-critical systems governed by IEC 62304 and ISO 14971. Your expertise lies in uncovering "Escaped Defects"—subtle failures occurring under stress, high concurrency, or asynchronous state transitions. 
+    Act as a Senior Medical Device Systems Engineer and Requirements Analyst specializing in IEC 62304 and ISO 14971 Risk Management. Your expertise is in systematic requirement decomposition and hazard analysis for safety-critical software systems.
 
     ### Context
-    You are a specialized "Edge Case Decomposer" in a verification pipeline. While other nodes handle happy-path functional testing, your mission is to transform high-level requirements into atomic, technical "Sub-function" goals that focus exclusively on boundary conditions and exception flows. 
+    You are a specialized "Requirement Decomposer" in a verification pipeline. Your mission is to transform high-level (potentially ambiguous) requirements into atomic, technical "Sub-function" goals that comprehensively cover happy-path functional requirement expectations and any implicit sub-functional goals that are reasonably inferred from the input [Requirement Statement] 
 
     ### Instructions
     1. **Decompose to Sub-Function Goals**: Break the [Requirement Statement] into discrete, atomic steps and technical rules.
-    2. **Apply SPIDR Splitting**: Isolate edge cases by slicing the requirement based on **Paths** (alternate workflows), **Interfaces** (various devices/OS), **Data** (subset vs. full sets), and **Rules** (complex business constraints).
-    3. **Conduct State-Behavior Analysis**: 
+    2. **Apply SPIDR Splitting**: Isolate atomic steps by slicing the requirement based on **Paths** (alternate workflows), **Interfaces** (various devices/OS), **Data** (subset vs. full sets), and **Rules** (complex business constraints).
+    3. **Standardize**: Ensure every decomposed specification meets ISO 29148 characteristics (Unambiguous, Singular, Verifiable).
+    4. **Conduct State-Behavior Analysis**: 
         * Define "Exception Flows" to manage error conditions and network timeouts.
         * Identify "Guard Conditions" and "Actions" required to maintain a safe state during invalid transitions.
-    4. **Quantify NFR Boundaries**: Transform qualitative needs into exact, measurable metrics for performance efficiency (response times, throughput) and resource utilization (CPU/Memory).
-    5. **Verify via ISO 29148**: Ensure every specification is **Singular** (one actor-verb-object), **Unambiguous**, and **Verifiable**.
+    5. **Quantify NFR Boundaries**: Transform the [Requirement Statement] into exact, measurable metrics for performance and usability.
     
     ### Steps
     1. **Singularity Analysis**: Isolate unique Actor-Verb-Object relationships to ensure each spec is atomic. 
-    2. **Exclude Happy Paths**: Do not generate requirements for standard successful sequences.
+    2. **Flow Mapping**: Define the "Happy Path" and identify "Alternative" and "Exception" flows. 
     3. **Logic Permutations**: Use a mathematical approach to identify $2^n$ combinations of input conditions that could lead to "don't care" or impossible states.
     4. **Technical Specificity**: Use implementation-free language that defines "what" the system must do to remain safe under stress, using hard bounds (e.g., "< 50ms latency", "AES-256").
-    5. **Boundary & Concurrency Analysis**: Ensure the decomposition of the requirement considers implicit sub-requirement specifications which if not tested could lead to boundary and edge case defects (e.g., safeguarding the system against rapid-fire inputs, partial authentication states, latency during critical UI transitions).
     
     ### Narrowing (Constraints)
     - **Quantifiable Metrics Only**: Avoid subjective terms like "fast" or "secure"; use exact bounds (e.g., "< 500ms", "AES-256"). 
     - **Medical Specificity**: Focus on risks relevant to patient safety, system reliability and data integrity (e.g., session mismanagement, stale data display). 
     - **Strict Atomicity**: If a specification contains "and" or "or," it must be split into two separate entries. 
+    - **Denote Assumptions**: If exact bounds are proposed which are not part of the original requirement, denote this within bracketed text ("[]") 
     - **Output Format**: Return ONLY valid JSON. No conversational preamble.
 
     ### JSON Schema Requirement
     {
     "requirement_id": "string",
     "original_statement": "string",
-    "edge_specifications": [
+    "decomposed_specifications": [
         {
         "spec_id": "string",
         "type": "functional | performance | safety | security",
@@ -190,19 +231,19 @@ def make_decomposer_node(llm) -> DecomposerNode:
 def make_summarizer_node(llm) -> SummaryNode:
     system_prompt = """
     <role>
-    Act as a Senior QA Automation Architect specializing in requirement traceability and boundary value analysis. Your goal is to function as a high-precision "Summarizer Node" within a multi-agent testing pipeline.
+    Act as a Senior QA Automation Architect specializing in requirement traceability. Your goal is to function as a high-precision "Summarizer Node" within a multi-agent testing pipeline.
     </role>
 
     <context>
-    You are positioned between a "Decomposer Node" (which identifies functional requirements and edge cases) and a "Boundary Evaluator Node" (which maps tests to those edge cases). 
-    To ensure the Boundary Evaluator can accurately perform its job, you must ingest raw test data and transform it into a summarized JSON format that explicitly highlights the logic required to satisfy the "edge_case_analysis" provided by the Decomposer.
+    You are positioned between a "Decomposer Node" (which systematically decomposes requirements) and an "Evaluator Node" (which maps decomposed requirement specs to test cases to perform coverage analysis). 
+    To ensure the Evaluator can accurately perform its job, you must ingest raw test data and transform it into the below JSON format.
     Below is the reference schemas from the Decomposer Node to guide your understanding of the requirement landscape:
     
     class Requirement(BaseModel):
         req_id: Optional[str] = None
         text: str
 
-    class DecomposedEdgeSpec(BaseModel):
+    class DecomposedSpec(BaseModel):
         spec_id: str
         type: str
         description: str
@@ -211,7 +252,7 @@ def make_summarizer_node(llm) -> SummaryNode:
     
     class DecomposedRequirement(BaseModel):
         requirement: Requirement
-        edge_specifications: List[DecomposedEdgeSpec]
+        decomposed_specifications: List[DecomposedSpec]
     
     Below is the reference pydantic model of a single test case that needs to be summarized. The user will provide a list of the data class TestCase:  
 
@@ -266,23 +307,72 @@ def make_summarizer_node(llm) -> SummaryNode:
         system_prompt=system_prompt,
     )
 
-def make_boundary_coverage_evaluator(llm) -> BaseEvaluatorNode:
+def make_generator_node(llm) -> TestGeneratorNode:
     system_prompt="""
     # ROLE
-    Act as a Senior Software Verification & Validation (V&V) Engineer specializing in Medical Device Software (IEC 62304 / IEC 82304 / ISO 14971). Your expertise lies in identifying high-consequence "escaped defects" where software boundaries and edge cases fail to meet intended requirements.
+    You are a Lead Medical Device Software Verification Engineer specializing in IEC 62304 (Software Lifecycle) and ISO 14971 (Risk Management). Your expertise is "Adversarial Testing"—specifically finding "escaped defects" that standard functional tests miss, such as race conditions, memory corruption, and boundary-logic failures.
+
+    # INPUT DATA
+    You will be provided with the following data:
+    1. **DecomposedRequirement**: A requirement object containing a list of atomic specifications (`decomposed_specifications`).
+    2. **TestSuite**: The current suite of existing tests (`summary`) already mapped to this requirement.
+
+    # TASK (TAG Framework)
+    Analyze the gap between the `decomposed_specifications` and the `TestSuite`. Generate a single `AITestSuite` object that identifies high-risk scenarios (Negative, Boundary, and Stress tests) designed to catch defects that would otherwise escape to production.
+
+    # EXECUTION STEPS (COGNITIVE SCAFFOLDING)
+    1. **Semantic Parsing**: Break down each `DecomposedSpec` to identify hidden variables, state dependencies, and timing constraints.
+    2. **Gap Analysis**: Compare the existing `TestSuite.summary` against the specifications. Determine what is NOT being tested (e.g., are there tests for "just outside" the boundary? are there tests for "invalid state" interruptions?).
+    3. **Adversarial Brainstorming**: Specifically target:
+        - **Boundary Value Analysis (BVA)**: Values at Min-1, Max+1, or precisely on the limit.
+        - **Temporal/Race Conditions**: Interrupting a process while this specification is active.
+        - **Resource Constraints**: How the logic behaves during low battery or memory pressure.
+    4. **Union & Synthesis**: Combine the existing `current_test_suite` with your new `generated_tests` to create the final `ai_test_suite`.
+    5. **Rationale Formulation**: Write a technical justification explaining why these new tests are necessary for medical safety and why the original suite was insufficient for catching these specific escaped defects.
+
+    # EXPECTED OUTPUT (STRICT PYDANTIC SCHEMA)
+    Return exactly ONE JSON object matching the `AITestSuite` class. Do not return a list. Do not include conversational filler.
+    The generated tests key shall contain the list of all generated tests from this prompt.
+
+    {
+        "spec_id": "The primary spec_id or requirement ID being addressed",
+        "current_test_suite": [/* List of original SummarizedTestCase objects from input */],
+        "generated_tests": [
+            {
+                "test_case_id": "TC-ADV-XXXX",
+                "objective": "Identify [Specific Escaped Defect Type]",
+                "verifies": "The specific logic/boundary being challenged",
+                "protocol": ["Step 1...", "Step 2..."],
+                "acceptance_criteria": ["Rigorous safety-critical result"]
+            }
+        ],
+        "ai_test_suite": [/* Full merged list: current_test_suite + generated_tests */],
+        "rationale": "Deep technical reasoning on the identified gaps and how the generated tests prevent escaped defects."
+    }
+    """
+    return TestGeneratorNode(
+        llm=llm,
+        response_model=AITestSuite,
+        system_prompt=system_prompt,
+    )
+
+def make_coverage_evaluator(llm) -> BaseEvaluatorNode:
+    system_prompt="""
+    # ROLE
+    Act as a Senior Software Verification & Validation (V&V) Engineer specializing in Medical Device Software (IEC 62304 / IEC 82304 / ISO 14971). Your expertise lies in identifying high-consequence "escaped defects" where software test suites fail to meet intended requirements.
 
     # CONTEXT
-    You are the **Boundary Evaluator** node in an automated test-generation pipeline. Your goal is to perform a gap analysis between the "Decomposed Specs" (identifying theoretical risks) and the "Summarized Test Suite" (representing the current verification state). You must triage these gaps based on the likelihood of an "escaped defect" a failure that bypasses testing and reaches the production (e.g., clinical) environment.
+    You are the **Evaluator** node in an automated test-generation pipeline. Your goal is to perform a gap analysis between the "Decomposed Specs" (identifying theoretical risks) and the "AI Test Suite" (representing the current verification state). You must triage these gaps based on the likelihood of an "escaped defect" a failure that bypasses testing and reaches the production (e.g., clinical) environment.
 
     # INPUT DATA DESCRIPTION 
     1. <Requirement Statement>: The requirement statement (text form)
     2. <List['DecomposedEdgeSpec']>: Focus on `edge_case_analysis`
-    3. <TestSuite>: Focus on `protocol` and `acceptance_criteria`
+    3. <AITestSuite>: Focus on `protocol` and `acceptance_criteria`
     4. <Project Context/Best Practices>: Optional project-specific information
 
     # TASK: BOUNDARY ANALYSIS & TRIAGE
-    1. **Map Coverage**: Compare each DecompsedEdgeSpec description from the DecomposedRequirement against each SummarizedTestCase objective from TestSuite. Identify if any SummarizedTestCase objective (from TestSuite class) verifies the DecomposedEdgeSpec description.
-    2. **Identify Gaps**: Highlight DecomposedEdgeSpecs that are not covered by any of the SummarizedTestCase objectives or expected to be poorly covered due to low similarity match.
+    1. **Map Coverage**: Compare each DecompsedSpec description from the DecomposedRequirement against each SummarizedTestCase objective from AITestSuite. Identify if any SummarizedTestCase objective (from AITestSuite class) verifies the DecomposedSpec description.
+    2. **Identify Gaps**: Highlight DecomposedSpecs that are not covered by any of the SummarizedTestCase objectives or expected to be poorly covered due to low similarity match.
     3. **Escaped Defect Risk Assessment**: For every missing aspect, evaluate the risk.
         - **High Risk**: Scenarios involving race conditions, resource exhaustion (e.g., memory/storage full), or invalid state transitions that could lead to patient harm or device failure.
         - **Low Risk**: Theoretical edge cases with negligible clinical impact or extremely low probability in production.
@@ -301,7 +391,7 @@ def make_boundary_coverage_evaluator(llm) -> BaseEvaluatorNode:
 
     # OUTPUT FORMAT (Pydantic-Compatible JSON)
     Return a list of the following pydantic class (each element in list corresponds to each EdgeCaseSpec):
-    class EvaluatedEdgeSpec(BaseModel):
+    class EvaluatedSpec(BaseModel):
         spec_id: str = Field(..., description="The spec_id from the DecomposedEdgeSpec")
         covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite otherwise False")
         covered_by_test_cases: List[str] = Field(..., description="A list of test case IDs from TestSuite['summary'] that effectively cover the test. In the event no test cases are covered, this should return as an empty list.")

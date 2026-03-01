@@ -9,10 +9,11 @@ from aiswre.components.processors import df_to_prompt_items
 from .nodes import (
     make_functional_coverage_evaluator,
     make_input_output_coverage_evaluator,
-    make_boundary_coverage_evaluator,
+    make_coverage_evaluator,
     make_negative_test_coverage_evaluator,
     make_decomposer_node, 
-    make_summarizer_node, 
+    make_summarizer_node,
+    make_generator_node, 
     make_assembler_node, 
     make_aggregator_node
 
@@ -101,7 +102,7 @@ class RTMReviewerRunnable:
         # Coverage evaluator nodes
         functional = make_functional_coverage_evaluator(client)
         input_output = make_input_output_coverage_evaluator(client)
-        boundary = make_boundary_coverage_evaluator(client)
+        boundary = make_coverage_evaluator(client)
         negative = make_negative_test_coverage_evaluator(client)
 
         # Aggregator
@@ -141,7 +142,7 @@ class RTMReviewerRunnable:
     @staticmethod
     def build_simple_graph(client: ChatOpenAI) -> Runnable:
         """
-        Build a simple decomposer -> summarizer -> boundary evaluator graph
+        Build a simple decomposer + summarizer -> generator -> coverage evaluator graph.
 
         Graph structure:
             START
@@ -149,28 +150,46 @@ class RTMReviewerRunnable:
             ┌─────────────────────────────────┐
             │DECOMPOSER, SUMMARIZER (parallel)│
             └─────────────────────────────────┘
+              ↓ (fan-in: waits for both)
+            ┌─────────────────────────────────┐
+            │GENERATOR                        │
+            │  in:  decomposed_requirement    │
+            │       test_suite                │
+            │  out: ai_test_suite (AITestSuite│
+            └─────────────────────────────────┘
               ↓
             ┌─────────────────────────────────┐
-            │BOUNDARY EVALUATOR               │
+            │COVERAGE EVALUATOR               │
+            │  in:  decomposed_requirement    │
+            │       ai_test_suite             │
             └─────────────────────────────────┘
+              ↓
             END
         """
         sg = StateGraph(RTMReviewState)
 
         decomposer = make_decomposer_node(client)
         summarizer = make_summarizer_node(client)
-        boundary = make_boundary_coverage_evaluator(client)
+        generator = make_generator_node(client)
+        coverage = make_coverage_evaluator(client)
 
         sg.add_node("decomposer", decomposer)
         sg.add_node("summarizer", summarizer)
-        sg.add_node("boundary", boundary)
+        sg.add_node("generator", generator)
+        sg.add_node("coverage", coverage)
 
+        # Decomposer and summarizer run in parallel from START
         sg.add_edge(START, "decomposer")
         sg.add_edge(START, "summarizer")
 
-        sg.add_edge("decomposer", "boundary")
-        sg.add_edge("summarizer", "boundary")
+        # Generator fans-in from both; receives decomposed_requirement + test_suite via state
+        sg.add_edge("decomposer", "generator")
+        sg.add_edge("summarizer", "generator")
 
-        sg.add_edge("boundary", END)
+        # Coverage evaluator receives ai_test_suite (from generator) and
+        # decomposed_requirement (from decomposer, already in state) via state
+        sg.add_edge("generator", "coverage")
+
+        sg.add_edge("coverage", END)
 
         return sg.compile()

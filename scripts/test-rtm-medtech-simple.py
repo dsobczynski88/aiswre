@@ -82,10 +82,11 @@ async def main():
     result = await simple_graph.ainvoke(input_state)
 
     # ============================================================================
-    # Build 6-tab Excel workbook
+    # Build 7-tab Excel workbook
     # ============================================================================
     decomposed = result.get("decomposed_requirement")
     test_suite = result.get("test_suite")
+    ai_test_suite = result.get("ai_test_suite")
     coverage_responses = result.get("coverage_responses", [])
 
     # Tab 1: inputs
@@ -106,7 +107,7 @@ async def main():
     # Tab 2: decomposer (specs without rationale)
     decomposer_rows = []
     if decomposed:
-        for spec in decomposed.edge_specifications:
+        for spec in decomposed.decomposed_specifications:
             decomposer_rows.append(
                 {
                     "spec_id": spec.spec_id,
@@ -162,7 +163,7 @@ async def main():
     # Tab 6: rationale (decomposer rationale per spec)
     rationale_rows = []
     if decomposed:
-        for spec in decomposed.edge_specifications:
+        for spec in decomposed.decomposed_specifications:
             rationale_rows.append(
                 {
                     "spec_id": spec.spec_id,
@@ -170,6 +171,21 @@ async def main():
                 }
             )
     df_rationale = pd.DataFrame(rationale_rows)
+
+    # Tab 7: aitestsuite (full merged SummarizedTestCase list from AITestSuite)
+    aitestsuite_rows = []
+    if ai_test_suite:
+        for s in ai_test_suite.ai_test_suite:
+            aitestsuite_rows.append(
+                {
+                    "test_case_id": s.test_case_id,
+                    "objective": s.objective,
+                    "verifies": s.verifies,
+                    "protocol": "; ".join(s.protocol),
+                    "acceptance_criteria": "; ".join(s.acceptance_criteria),
+                }
+            )
+    df_aitestsuite = pd.DataFrame(aitestsuite_rows)
 
     # Write all tabs
     output_path = "output/test-simple-graph.xlsx"
@@ -180,6 +196,7 @@ async def main():
         df_covered.to_excel(writer, sheet_name="covered", index=False)
         df_missing.to_excel(writer, sheet_name="missing", index=False)
         df_rationale.to_excel(writer, sheet_name="rationale", index=False)
+        df_aitestsuite.to_excel(writer, sheet_name="aitestsuite", index=False)
 
     print(f"Results saved to: {output_path}")
     print(
@@ -188,7 +205,7 @@ async def main():
     )
     print(
         f"  covered: {len(df_covered)} rows | missing: {len(df_missing)} rows | "
-        f"rationale: {len(df_rationale)} rows"
+        f"rationale: {len(df_rationale)} rows | aitestsuite: {len(df_aitestsuite)} rows"
     )
     print()
 
