@@ -50,6 +50,15 @@ class SummarizedTestCase(BaseModel):
     verifies: str
     protocol: List[str]
     acceptance_criteria: List[str]
+    is_generated: bool = False
+
+class AISummarizedTestCase(BaseModel):
+    test_case_id: str
+    objective: str
+    verifies: str
+    protocol: List[str]
+    acceptance_criteria: List[str]
+    is_generated: bool = True
 
 class TestSuite(BaseModel):
     requirement: Requirement
@@ -71,12 +80,14 @@ class TestSuite(BaseModel):
 class EvaluatedSpec(BaseModel):
     """Per-spec coverage verdict from an evaluator node."""
     spec_id: str = Field(..., description="The spec_id from the DecomposedSpec")
-    covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite otherwise False")
+    covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite (non-AI generated tests) otherwise False")
+    escaped_defect_risk: str = Field(..., description="A qualitative assessment (Low, Medium, High) regarding likelihood of occurrence that a defect related to EvaluatedSpec would occur in production")
+    escaped_defect_risk_rationale: str = Field(..., description="A 1-2 sentence rationale of how the qualitative assessment for `escaped_defect_risk` was determined")
     covered_by_test_cases: List[str] = Field(..., description="A list of test case IDs from TestSuite['summary'] that effectively cover the test. In the event no test cases are covered, this should return as an empty list.")
-    rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described DecomposedSpec")
+    coverage_rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described DecomposedSpec")
 
 class CoverageEvaluator(BaseModel):
-    """Container returned by each evaluator node — one EvaluatedEdgeSpec per decomposed spec."""
+    """Container returned by each evaluator node — one EvaluatedSpec per decomposed spec."""
     evaluations: List[EvaluatedSpec]
 
 class ReviewComment(BaseModel):
@@ -88,7 +99,7 @@ class ReviewComment(BaseModel):
 class AITestSuite(BaseModel):
     spec_id: str = Field(..., description="The spec_id from the DecomposedSpec")
     current_test_suite: List[SummarizedTestCase]
-    generated_tests: List[SummarizedTestCase]
+    generated_tests: List[AISummarizedTestCase]
     ai_test_suite: List[SummarizedTestCase] = Field(..., description="The final test suite consisting of the original TestSuite and the newly generated tests")
     rationale: str = Field(..., description="The reasoning as to why this test was generated given the input requirement and current test suite")
 

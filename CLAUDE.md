@@ -94,15 +94,20 @@ START → [decomposer, summarizer] (parallel) → assembler → [4 coverage eval
 - **Evaluators**: Functional, I/O, boundary, and negative test coverage (each appends to `coverage_responses` via `operator.add`)
 - **Aggregator**: Synthesizes evaluator assessments into actionable recommendations
 
-**Current implementation status**: Only the decomposer, summarizer, and boundary evaluator are fully implemented. `make_assembler_node`, `make_aggregator_node`, `make_input_output_coverage_evaluator`, and `make_negative_test_coverage_evaluator` are stubs (return `pass`). Use `RTMReviewerRunnable.build_simple_graph(client)` (decomposer + summarizer + boundary only) for current dev/test work.
+**Current implementation status**: The simple graph (`build_simple_graph`) is the active dev/test path:
+```
+START → [decomposer, summarizer] (parallel) → generator → coverage_evaluator → END
+```
+- `make_decomposer_node`, `make_summarizer_node`, `make_generator_node`, `make_coverage_evaluator` are fully implemented
+- `make_aggregator_node` exists but is a stub (returns `pass`)
+- `make_assembler_node`, `make_functional_coverage_evaluator`, `make_input_output_coverage_evaluator`, `make_negative_test_coverage_evaluator` are imported in `pipeline.py` but **not yet defined** in `nodes.py`
+- `build_graph` (the full 4-evaluator graph) will not run until these stubs are implemented
 
-**Class-based nodes**: Unlike other agents, this agent uses class-based callables (`DecomposerNode`, `SummaryNode`, `BaseEvaluatorNode`) rather than plain functions, each with `__init__(llm, response_model, system_prompt)` and `__call__(state)`.
+**Class-based nodes**: Unlike other agents, this agent uses class-based callables (`DecomposerNode`, `SummaryNode`, `TestGeneratorNode`, `BaseEvaluatorNode`) rather than plain functions, each with `__init__(llm, response_model, system_prompt)` and `__call__(state)`. Note: `DecomposerNode` and `SummaryNode` use sync `invoke`; `TestGeneratorNode` and `BaseEvaluatorNode` use async `ainvoke`.
 
 **Inline system prompts**: System prompts are embedded directly in the factory functions in `nodes.py`, not loaded from the `prompts/` directory.
 
-**Missing type**: `CoverageEvaluator` is imported in `nodes.py` but does not yet exist in `core.py`; it needs to be defined as the structured output model for evaluator nodes (currently `EvaluatedEdgeSpec` is the per-spec model in `core.py`).
-
-This agent does NOT have a separate `evaluators.py`; all node factory functions live in `nodes.py`. Entry point is `RTMReviewerRunnable` class in `pipeline.py`.
+This agent does NOT have a separate `evaluators.py`; all node factory functions live in `nodes.py`. Entry point is `RTMReviewerRunnable` class in `pipeline.py`. `save_graph_png(graph, path)` in `utils.py` renders the compiled graph as a PNG for debugging.
 
 ### Two Processing Paths
 
@@ -130,7 +135,7 @@ set OLLAMA_HOST=0.0.0.0:11435 && ollama serve   # Terminal 2
 - **Primary**: Code-based configuration via factory function parameters (see `scripts/` for examples)
 - **Legacy**: `config.yaml` at root for older INCOSE pipeline examples (model, prompts, eval funcs, weights)
 - **Environment**: `.env` file with `OPENAI_API_KEY` (required for OpenAI variants)
-- **Output**: Test/example scripts write results to `output/` directory (must exist; not tracked by git except for its contents)
+- **Output**: Test/example scripts write results to `output/` directory (must exist; not tracked by git except for its contents). The simple graph test (`test-rtm-medtech-simple.py`) writes a 7-tab Excel workbook: `inputs`, `decomposer`, `summarizer`, `covered`, `missing`, `rationale`, `aitestsuite`.
 
 ## Extending Agents
 

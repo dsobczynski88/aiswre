@@ -372,11 +372,12 @@ def make_coverage_evaluator(llm) -> BaseEvaluatorNode:
 
     # TASK: BOUNDARY ANALYSIS & TRIAGE
     1. **Map Coverage**: Compare each DecompsedSpec description from the DecomposedRequirement against each SummarizedTestCase objective from AITestSuite. Identify if any SummarizedTestCase objective (from AITestSuite class) verifies the DecomposedSpec description.
-    2. **Identify Gaps**: Highlight DecomposedSpecs that are not covered by any of the SummarizedTestCase objectives or expected to be poorly covered due to low similarity match.
-    3. **Escaped Defect Risk Assessment**: For every missing aspect, evaluate the risk.
+    2. **Identify Gaps**: Highlight DecomposedSpecs that are not covered by any of the SummarizedTestCase objectives or expected to be poorly covered due to low similarity match. 
+    3. **Identify AI covered versus coverage from current test suite**
+    4. **Escaped Defect Risk Assessment**: For every missing aspect, evaluate the risk.
         - **High Risk**: Scenarios involving race conditions, resource exhaustion (e.g., memory/storage full), or invalid state transitions that could lead to patient harm or device failure.
         - **Low Risk**: Theoretical edge cases with negligible clinical impact or extremely low probability in production.
-    4. **Tool Grounding**: Use available search/document tools (e.g., [Project Context/Best Practices] to verify if specific edge cases (e.g., specific CDN failures or storage persistence issues) are known "escaped defect" patterns in this project's domain and to evaluate whether it is meaningful edge case to test.
+    5. **Tool Grounding**: Use available search/document tools (e.g., [Project Context/Best Practices] to verify if specific edge cases (e.g., specific CDN failures or storage persistence issues) are known "escaped defect" patterns in this project's domain and to evaluate whether it is meaningful edge case to test.
 
     # IN-CONTEXT LEARNING EXAMPLES
     - **Example 1 (Escaped Defect)**: 
@@ -394,45 +395,16 @@ def make_coverage_evaluator(llm) -> BaseEvaluatorNode:
     class EvaluatedSpec(BaseModel):
         spec_id: str = Field(..., description="The spec_id from the DecomposedEdgeSpec")
         covered_exists: bool = Field(..., description="True if coverage exists in at least one test case of input TestSuite otherwise False")
+        escaped_defect_risk: str = Field(..., description="A qualitative assessment (Low, Medium, High) regarding likelihood of occurrence that a defect related to EvaluatedSpec would occur in production")
+        escaped_defect_risk_rationale: Field(..., description="A 1-2 sentence rationale of how the qualitative assessment for `escaped_defect_risk` was determined")
         covered_by_test_cases: List[str] = Field(..., description="A list of test case IDs from TestSuite['summary'] that effectively cover the test. In the event no test cases are covered, this should return as an empty list.")
-        rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described EdgeCaseSpec")
+        coverage_rationale: str = Field(..., description="Thought process behind the determination of whether the existing test cases within TestSuite cover or fail to cover the described EvaluatedSpec")
     """
     return BaseEvaluatorNode(
         llm=llm,
         response_model=CoverageEvaluator,
         system_prompt=system_prompt,
     )
-
-def make_functional_coverage_evaluator(llm) -> BaseEvaluatorNode:
-    system_prompt = """
-    You are a medical device verification specialist evaluating functional coverage.
-    TASK: Assess if the test cases cover all functional aspects of the requirement.
-    CRITERIA:
-    - Are all stated functions/capabilities verified?
-    - Are both normal operations and alternate flows tested?
-    - Does the test suite address the complete functional scope?
-
-    Return ONLY valid JSON (no markdown, no code blocks) with this structure:
-    {
-        "covered": str = <Functional elements adequately covered by the test suite>, 
-        "missing": str = <Functional elements not clearly covered by test suite>, 
-        "rationale": str = <Thought process behind the determination of what was covered and what was missing>, 
-    }
-    """
-    return BaseEvaluatorNode(
-        llm=llm,
-        response_model=CoverageEvaluator,
-        system_prompt=system_prompt,
-    )
-
-def make_input_output_coverage_evaluator(llm) -> BaseEvaluatorNode:
-    pass
-
-def make_negative_test_coverage_evaluator(llm) -> BaseEvaluatorNode:
-    pass
-
-def make_assembler_node(llm) -> Dict: 
-    pass
 
 def make_aggregator_node(llm) -> Dict:
     pass
