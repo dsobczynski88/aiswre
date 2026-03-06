@@ -74,9 +74,15 @@ class TestGeneratorNode:
     async def __call__(self, state: Dict) -> Dict:
         decomposed_requirement = state.get("decomposed_requirement")
         test_suite = state.get("test_suite")
+
+        if decomposed_requirement is None or test_suite is None:
+            print("TestGeneratorNode: skipping — upstream node returned None")
+            return {"ai_test_suite": None}
+
         # Build payload for LLM
         payload = self._build_payload(decomposed_requirement, test_suite)
 
+        parsed = None
         try:
             messages = [
                 SystemMessage(content=self.system_prompt),
@@ -86,7 +92,7 @@ class TestGeneratorNode:
             parsed = await self.structured_llm.ainvoke(messages)
         except Exception as e:
             print(e)
-            
+
         return {"ai_test_suite": parsed}
 
 
@@ -159,9 +165,15 @@ class BaseEvaluatorNode:
         original_requirement = state.get("requirement")
         decomposed_requirement = state.get("decomposed_requirement")
         ai_test_suite = state.get("ai_test_suite")
+
+        if decomposed_requirement is None or ai_test_suite is None:
+            print("BaseEvaluatorNode: skipping — upstream node returned None")
+            return {"coverage_responses": []}
+
         # Build payload for LLM
         payload = self._build_payload(original_requirement, decomposed_requirement, ai_test_suite)
 
+        parsed = None
         try:
             messages = [
                 SystemMessage(content=self.system_prompt),
@@ -171,9 +183,9 @@ class BaseEvaluatorNode:
             parsed = await self.structured_llm.ainvoke(messages)
         except Exception as e:
             print(e)
-            
+
         # Return parsed instance in a list — LangGraph uses operator.add to merge
-        return {"coverage_responses": [parsed]}
+        return {"coverage_responses": [parsed] if parsed is not None else []}
         
 
 def make_decomposer_node(llm) -> DecomposerNode:

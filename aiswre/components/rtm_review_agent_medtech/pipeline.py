@@ -7,16 +7,11 @@ from aiswre.prj_logger import ProjectLogger
 from aiswre.components.processors import df_to_prompt_items
 #from .core import Requirement, TestCase, MedtechTraceLink, TestCaseState
 from .nodes import (
-    make_functional_coverage_evaluator,
-    make_input_output_coverage_evaluator,
     make_coverage_evaluator,
-    make_negative_test_coverage_evaluator,
-    make_decomposer_node, 
+    make_decomposer_node,
     make_summarizer_node,
-    make_generator_node, 
-    make_assembler_node, 
-    make_aggregator_node
-
+    make_generator_node,
+    make_aggregator_node,
 )
 from .core import (
     RTMReviewState,
@@ -88,6 +83,15 @@ class RTMReviewerRunnable:
               ↓
             END
         """
+        # These node factories are not yet implemented — build_graph is not runnable.
+        # Use build_simple_graph() for current dev/test work.
+        from .nodes import (  # noqa: F401  (will raise ImportError until implemented)
+            make_functional_coverage_evaluator,
+            make_input_output_coverage_evaluator,
+            make_negative_test_coverage_evaluator,
+            make_assembler_node,
+        )
+
         sg = StateGraph(RTMReviewState)
 
         ## Define the nodes
@@ -95,7 +99,7 @@ class RTMReviewerRunnable:
         # Decomposer and Summarizer
         decomposer = make_decomposer_node(client)
         summarizer = make_summarizer_node(client)
-        
+
         # Assembler
         assembler = make_assembler_node()
 
